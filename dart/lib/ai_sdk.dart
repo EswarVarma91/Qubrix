@@ -12,7 +12,6 @@ library ai_sdk;
 
 // Core types
 export 'src/core/types.dart';
-export 'src/core/task_orchestrator.dart';
 
 // Model management
 export 'src/model/model_types.dart';
@@ -34,7 +33,6 @@ export 'src/automation/automation_engine.dart';
 
 // Main engine
 export 'src/agent/agent_engine.dart';
-export 'src/agent/task_orchestrator.dart';
 
 // Version
 export 'src/version.dart';
