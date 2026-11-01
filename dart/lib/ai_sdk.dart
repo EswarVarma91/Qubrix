@@ -19,6 +19,9 @@ export 'src/core/security/integrity_verifier.dart';
 export 'src/core/security/permission_guard.dart';
 export 'src/core/security/tamper_detector.dart';
 export 'src/core/security/data_protector.dart';
+export 'src/core/security/customer_data_protector.dart';
+export 'src/core/security/data_isolation.dart';
+export 'src/core/security/emergency_breach_response.dart';
 
 // Model management
 export 'src/model/model_types.dart';
