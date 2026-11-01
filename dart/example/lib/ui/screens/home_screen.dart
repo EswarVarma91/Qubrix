@@ -170,7 +170,7 @@ class HomeScreen extends GetView<HomeController> {
                     actions: [
                       ActionItem(
                         label: AppStrings.downloadModel,
-                        icon: Icons.download,
+                        icon: Icons.cloud_download,
                         description: 'Download model from Firebase config',
                         onPressed: controller.downloadModel,
                         isLoading: controller.isDownloading,
