@@ -8,7 +8,7 @@ import '../../core/utils/router.dart';
 import '../../data/repositories/ai_repository.dart';
 import '../../core/bindings/app_bindings.dart';
 
-/// Home controller - all models come from Firebase Remote Config
+/// Home controller - HuggingFace URL comes from Firebase Remote Config
 /// Background task - user just taps download, no model selection UI
 class HomeController extends GetxController {
   final AdaptiveAgentEngine _engine;
@@ -50,17 +50,18 @@ class HomeController extends GetxController {
     super.onInit();
     _checkSecurityStatus();
     _updateModelStatus();
-    // Load model config from Firebase (background - user doesn't see this)
-    _loadModelConfigFromFirebase();
+    // Load HuggingFace URL from Firebase (background - user doesn't see this)
+    _loadHuggingFaceUrlFromFirebase();
   }
 
-  void _loadModelConfigFromFirebase() {
-    // Get model config from Firebase Remote Config
-    // This happens in background - user never sees model selection
-    final models = _modelConfig.getAvailableModels();
-    _usingFirebase.value = models.isNotEmpty &&
-        _modelConfig.getModel(models.first.repoId) != null;
-    // Model repo is set automatically - user doesn't choose
+  void _loadHuggingFaceUrlFromFirebase() {
+    // Get HuggingFace URL from Firebase Remote Config
+    // This happens in background - user never sees URL or model selection
+    final url = _modelConfig.getHuggingFaceUrl();
+    final isFirebaseConfigured = _modelConfig.isUsingFirebase;
+    _usingFirebase.value = isFirebaseConfigured;
+    debugPrint('HuggingFace URL (from Firebase): $url');
+    // URL is loaded automatically - user doesn't choose
   }
 
   void _checkSecurityStatus() {
@@ -113,16 +114,16 @@ class HomeController extends GetxController {
   Future<void> downloadModel() async {
     if (_isDownloading.value) return;
 
-    // Get the model repo from Firebase config (already loaded in background)
-    final models = _modelConfig.getAvailableModels();
-    if (models.isEmpty) {
-      _setStatus('No models configured');
+    // Get the HuggingFace URL from Firebase config (already loaded in background)
+    final huggingFaceUrl = _modelConfig.getHuggingFaceUrl();
+
+    // Extract repo ID from HuggingFace URL
+    // URL format: https://huggingface.co/<owner>/<repo>
+    final repoId = _extractRepoIdFromUrl(huggingFaceUrl);
+    if (repoId.isEmpty) {
+      _setStatus('Invalid HuggingFace URL from Firebase: $huggingFaceUrl');
       return;
     }
-
-    // Use first model from Firebase (or local default)
-    final model = models.first;
-    final repoId = model.repoId;
 
     _isDownloading.value = true;
     _setStatus('${AppStrings.downloading}...');
@@ -325,6 +326,23 @@ class HomeController extends GetxController {
     _isModelLoaded.value = _repository.getInstalledModels().any(
       (m) => _repository.isModelLoaded(m.id),
     );
+  }
+
+  /// Extract HuggingFace repo ID from URL
+  /// URL format: https://huggingface.co/<owner>/<repo>
+  String _extractRepoIdFromUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      // Get the last two path segments: owner/repo
+      final pathSegments = uri.pathSegments;
+      if (pathSegments.length >= 2) {
+        final repoId = '${pathSegments[pathSegments.length - 2]}/${pathSegments[pathSegments.length - 1]}';
+        return repoId.contains('@') ? repoId.split('@').first : repoId;
+      }
+      return '';
+    } catch (e) {
+      return '';
+    }
   }
 
   @override
