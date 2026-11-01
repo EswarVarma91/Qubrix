@@ -5,7 +5,7 @@ class AppStrings {
   AppStrings._();
 
   // App
-  static const String appName = 'AI SDK Demo';
+  static const String appName = 'Qubrix Demo';
   static const String appVersion = '1.0.0';
   static const String loadingText = 'Loading...';
   static const String retry = 'Retry';

@@ -2,12 +2,12 @@
 ///
 /// ## SDK Firebase Architecture
 ///
-/// The AI SDK has its own Firebase configuration for Remote Config.
+/// The Qubrix has its own Firebase configuration for Remote Config.
 /// This is separate from the host app's Firebase configuration.
 ///
 /// ## Two Firebase Configurations
 ///
-/// ### 1. SDK's Firebase (AI SDK's own Firebase)
+/// ### 1. SDK's Firebase (Qubrix's own Firebase)
 /// - Used by the SDK for Remote Config (fetching HuggingFace model URL)
 /// - Configured in the SDK's Firebase project
 /// - The SDK initializes this automatically

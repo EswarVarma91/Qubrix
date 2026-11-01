@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 import '../firebase_remote_config.dart';
 import '../../data/repositories/ai_repository.dart';
 import '../../ui/controllers/home_controller.dart';

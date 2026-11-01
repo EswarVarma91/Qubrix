@@ -1,4 +1,4 @@
-name: ai_sdk
+name: qubrix
 description: Adaptive AI Agent Engine - An adaptive, personalized AI automation platform for mobile applications.
 version: 1.0.0
 homepage: https://github.com/EswarVarma91/ai_sdk
@@ -20,5 +20,5 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
 
-# AI SDK is a Dart/Flutter package (not a Flutter plugin)
+# Qubrix is a Dart/Flutter package (not a Flutter plugin)
 # No native platform code required - works as a regular Dart package

@@ -1,8 +1,8 @@
-# AI SDK Architecture
+# Qubrix Architecture
 
 ## Overview
 
-The AI SDK is an adaptive, personalized AI automation platform for mobile applications. It combines:
+Qubrix is an adaptive, personalized AI automation platform for mobile applications. It combines:
 
 1. **Smallest capable model selection** - Automatically use the smallest model that can reliably complete tasks
 2. **Personalized learning** - Learn user routines and preferences from permitted interactions
@@ -366,7 +366,7 @@ For actions that change important state, use idempotency keys or equivalent prot
 ### Basic Integration
 
 ```dart
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 
 void main() async {
   // Create and initialize the engine

@@ -23,6 +23,7 @@ if (flutterVersionName == null) {
 
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
+apply plugin: 'com.google.gms.google-services'
 apply from: "$flutterRoot/packages/flutter_tools/grdient/app/proguard-rules.pro"
 
 android {
@@ -42,7 +43,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.aisdkexample"
+        applicationId "com.varma.qubrix"
         minSdkVersion 21
         targetSdkVersion 33
         versionCode flutterVersionCode.toInteger()

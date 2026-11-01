@@ -1,6 +1,6 @@
-// Comprehensive tests for AI SDK
+// Comprehensive tests for Qubrix
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 
 void main() {
   group('Model Types', () {

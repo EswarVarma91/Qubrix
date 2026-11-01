@@ -187,7 +187,7 @@ class SettingsScreen extends GetView<HomeController> {
             // App version footer
             Center(
               child: Text(
-                'AI SDK v${AppStrings.appVersion}',
+                'Qubrix v${AppStrings.appVersion}',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -338,7 +338,7 @@ class SettingsScreen extends GetView<HomeController> {
 
   void showSnackbar(String message) {
     Get.snackbar(
-      'AI SDK',
+      'Qubrix',
       message,
       snackPosition: SnackPosition.BOTTOM,
       duration: const Duration(seconds: 2),

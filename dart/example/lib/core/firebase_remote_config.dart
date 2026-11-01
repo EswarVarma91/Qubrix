@@ -1,4 +1,4 @@
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 
 /// Example app's Firebase Remote Config service.
 ///

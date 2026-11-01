@@ -76,24 +76,24 @@ class SdkRemoteConfigService {
     if (Firebase.apps.isNotEmpty) {
       // Check if we already created an app with our name
       try {
-        _app = Firebase.app('ai_sdk_remote_config');
+        _app = Firebase.app('qubrix_remote_config');
       } catch (e) {
         // App doesn't exist, create a new one
         _app = await Firebase.initializeApp(
           options: options,
-          name: 'ai_sdk_remote_config',
+          name: 'qubrix_remote_config',
         );
       }
     } else {
       // No Firebase apps exist, initialize new one
       _app = await Firebase.initializeApp(
         options: options,
-        name: 'ai_sdk_remote_config',
+        name: 'qubrix_remote_config',
       );
     }
 
-    // Configure Remote Config
-    _remoteConfig = FirebaseRemoteConfig.instance;
+    // Configure Remote Config for the SDK's own (named) Firebase app
+    _remoteConfig = FirebaseRemoteConfig.instanceFor(app: _app!);
 
     // Set up Remote Config settings
     await _remoteConfig!.setConfigSettings(
@@ -110,7 +110,7 @@ class SdkRemoteConfigService {
 
     // Initialize Analytics (optional, for SDK usage tracking)
     try {
-      _analytics = FirebaseAnalytics.instance;
+      _analytics = FirebaseAnalytics.instanceFor(app: _app!);
     } catch (e) {
       // Analytics may not be available; continue without it
       _analytics = null;

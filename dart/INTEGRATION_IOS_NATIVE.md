@@ -1,6 +1,6 @@
-# AI SDK - Native iOS Integration Guide
+# Qubrix - Native iOS Integration Guide
 
-This guide explains how to integrate the AI SDK into a native iOS application. The SDK has its own Firebase configuration for Remote Config, separate from the host app's Firebase.
+This guide explains how to integrate Qubrix into a native iOS application. The SDK has its own Firebase configuration for Remote Config, separate from the host app's Firebase.
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ This guide explains how to integrate the AI SDK into a native iOS application. T
 
 ## Overview
 
-The AI SDK is a Flutter/Dart package that provides adaptive AI capabilities. It can be integrated into native iOS apps via platform channels or by building the Flutter module as an iOS framework.
+Qubrix is a Flutter/Dart package that provides adaptive AI capabilities. It can be integrated into native iOS apps via platform channels or by building the Flutter module as an iOS framework.
 
 The SDK includes its own Firebase configuration for Remote Config. This allows the SDK to fetch the HuggingFace model URL regardless of whether the host app has Firebase or not.
 
@@ -78,8 +78,8 @@ If your iOS app uses Flutter, add the SDK as a dependency in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  ai_sdk:
-    path: ../path/to/ai_sdk
+  qubrix:
+    path: ../path/to/qubrix
 ```
 
 ### Option 2: Use SDK via Platform Channel
@@ -97,7 +97,7 @@ Build the Flutter module as an iOS framework and include it in your Xcode projec
 ### Step 1: Create Firebase Project for SDK
 
 1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Create a new project (e.g., "AI SDK Demo")
+2. Create a new project (e.g., "Qubrix Demo")
 3. Add an iOS app to the project
    - Bundle ID: Use your app's bundle ID or a custom one for the SDK
 4. Download `GoogleService-Info.plist`

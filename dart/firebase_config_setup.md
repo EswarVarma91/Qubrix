@@ -12,7 +12,7 @@ The SDK has its own Firebase configuration for Remote Config. This is separate f
 
 1. Go to [Firebase Console](https://console.firebase.google.com)
 2. Click "Add project"
-3. Enter project name (e.g., "AI SDK Demo")
+3. Enter project name (e.g., "Qubrix Demo")
 4. Follow the setup wizard
 
 ### Step 2: Add Apps to Firebase Project
@@ -21,7 +21,7 @@ The SDK has its own Firebase configuration for Remote Config. This is separate f
 
 1. In Firebase Console, go to Project Settings
 2. Click "Add app" → Android
-3. Enter package name (e.g., `com.example.ai_sdk`)
+3. Enter package name (e.g., `com.varma.qubrix`)
 4. Download `google-services.json`
 5. Place the file in the appropriate location
 
@@ -29,7 +29,7 @@ The SDK has its own Firebase configuration for Remote Config. This is separate f
 
 1. In Firebase Console, go to Project Settings
 2. Click "Add app" → iOS
-3. Enter bundle ID (e.g., `com.example.ai_sdk`)
+3. Enter bundle ID (e.g., `com.varma.qubrix`)
 4. Download `GoogleService-Info.plist`
 5. Place the file in the appropriate location
 
@@ -112,7 +112,7 @@ SdkFirebaseOptions.printConfigStatus();
 
 If you see conflicts between SDK Firebase and host app Firebase:
 - Ensure they use different Firebase app names
-- The SDK uses `ai_sdk` as the default app name
+- The SDK uses `qubrix` as the default app name
 - The host app should use its own app name
 
 ## API Keys Security

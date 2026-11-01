@@ -1,6 +1,6 @@
-# AI SDK Example App
+# Qubrix Example App
 
-A complete Flutter sample application demonstrating the AI SDK integration.
+A complete Flutter sample application demonstrating Qubrix integration.
 
 ## Features
 
@@ -96,7 +96,7 @@ The app implements a background task flow with no model selection UI:
 
 ## Dependencies
 
-- `ai_sdk`: Path dependency to the SDK
+- `qubrix`: Path dependency to the SDK
 - `get`: ^4.6.6 - State management
 - `get_it`: ^7.6.7 - Dependency injection
 

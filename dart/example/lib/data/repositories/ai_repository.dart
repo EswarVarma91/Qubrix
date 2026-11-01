@@ -1,7 +1,7 @@
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 import '../../core/firebase_remote_config.dart';
 
-/// Repository for AI SDK operations
+/// Repository for Qubrix operations
 class AiRepository {
   final AdaptiveAgentEngine _engine;
   final FirebaseRemoteConfigService? _firebaseService;

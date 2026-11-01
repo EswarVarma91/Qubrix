@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 
 import 'core/firebase_remote_config.dart';
 import 'core/bindings/app_bindings.dart';
@@ -15,7 +15,7 @@ void main() async {
   // Set up dependencies
   await setupDependencies();
 
-  runApp(const AiSdkExampleApp());
+  runApp(const QubrixApp());
 }
 
 Future<void> initializeFirebase() async {
@@ -29,13 +29,13 @@ Future<void> initializeFirebase() async {
   }
 }
 
-class AiSdkExampleApp extends StatelessWidget {
-  const AiSdkExampleApp({super.key});
+class QubrixApp extends StatelessWidget {
+  const QubrixApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'AI SDK Example',
+      title: 'Qubrix',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1976D2)),

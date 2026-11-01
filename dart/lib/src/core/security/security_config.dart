@@ -1,4 +1,4 @@
-/// Security configuration for the AI SDK
+/// Security configuration for the Qubrix
 /// 
 /// This class defines security policies that protect the SDK from:
 /// - Unauthorized model downloads

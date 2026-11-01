@@ -4,15 +4,16 @@ import 'package:flutter/foundation.dart'
 
 /// SDK's Firebase options.
 ///
-/// These are placeholder values that need to be replaced with actual
-/// Firebase project credentials. The SDK ships with its own Firebase
+/// These are the credentials for the SDK's own Firebase project
+/// (`qubrix-77954`), taken from `google-services.json` and
+/// `GoogleService-Info.plist`. The SDK ships with its own Firebase
 /// configuration so it can fetch Remote Config (the HuggingFace model URL)
 /// regardless of whether the host app has Firebase or not.
 ///
 /// ## Setup Instructions
 ///
 /// 1. Create a Firebase project at https://console.firebase.google.com
-/// 2. Add an Android app to the project (com.example.ai_sdk or your package)
+/// 2. Add an Android app to the project (com.varma.qubrix or your package)
 /// 3. Download google-services.json
 /// 4. Add an iOS app to the project
 /// 5. Download GoogleService-Info.plist
@@ -37,20 +38,23 @@ import 'package:flutter/foundation.dart'
 class SdkFirebaseOptions {
   // MARK: - Android Configuration
   /// Android API Key
-  static String androidApiKey = 'YOUR_ANDROID_API_KEY';
+  static String androidApiKey = 'AIzaSyDiSCdt6Bkxk5jSxqA-RqT0-OGLo3HZZks';
 
   /// Android App ID
-  static String androidAppId = 'YOUR_ANDROID_APP_ID';
+  static String androidAppId = '1:532964963634:android:80b4ed67c62ab6609dd32b';
 
-  /// Android Project ID
-  static String androidProjectId = 'YOUR_PROJECT_ID';
+  /// Firebase Project ID (shared by the Android and iOS apps)
+  static String androidProjectId = 'qubrix-77954';
 
   // MARK: - iOS Configuration
   /// iOS API Key
-  static String iosApiKey = 'YOUR_IOS_API_KEY';
+  static String iosApiKey = 'AIzaSyA8SOJbuerav02_1P0ReJDP1CvbtjCUpoA';
 
   /// iOS App ID
-  static String iosAppId = 'YOUR_IOS_APP_ID';
+  static String iosAppId = '1:532964963634:ios:2143973eaf264a7c9dd32b';
+
+  /// iOS bundle identifier registered in Firebase
+  static String iosBundleId = 'com.varma.qubrix';
 
   // MARK: - Web Configuration
   /// Web API Key
@@ -61,10 +65,16 @@ class SdkFirebaseOptions {
 
   // MARK: - Common Configuration
   /// Messaging Sender ID (shared across platforms)
-  static String messagingSenderId = 'YOUR_MESSAGING_SENDER_ID';
+  static String messagingSenderId = '532964963634';
 
-  /// Measurement ID (for Analytics)
-  static String measurementId = 'YOUR_MEASUREMENT_ID';
+  /// Cloud Storage bucket
+  static String storageBucket = 'qubrix-77954.firebasestorage.app';
+
+  /// Measurement ID (for Analytics).
+  ///
+  /// No web app / Analytics measurement ID was issued for this project,
+  /// so leave this empty; [currentPlatform] omits it when empty.
+  static String measurementId = '';
 
   // MARK: - Firebase Options Factory
 
@@ -79,10 +89,10 @@ class SdkFirebaseOptions {
         appId: webAppId,
         messagingSenderId: messagingSenderId,
         projectId: androidProjectId,
-        authDomain: '${androidProjectId}.firebaseapp.com',
-        databaseURL: 'https://${androidProjectId}.firebaseio.com',
-        storageBucket: '${androidProjectId}.appspot.com',
-        measurementId: measurementId,
+        authDomain: '$androidProjectId.firebaseapp.com',
+        databaseURL: 'https://$androidProjectId.firebaseio.com',
+        storageBucket: storageBucket,
+        measurementId: measurementId.isEmpty ? null : measurementId,
       );
     }
 
@@ -93,9 +103,9 @@ class SdkFirebaseOptions {
           appId: androidAppId,
           messagingSenderId: messagingSenderId,
           projectId: androidProjectId,
-          databaseURL: 'https://${androidProjectId}.firebaseio.com',
-          storageBucket: '${androidProjectId}.appspot.com',
-          deepLinkURLScheme: null,
+          databaseURL: 'https://$androidProjectId.firebaseio.com',
+          storageBucket: storageBucket,
+          measurementId: measurementId.isEmpty ? null : measurementId,
         );
       case TargetPlatform.iOS:
         return FirebaseOptions(
@@ -103,8 +113,10 @@ class SdkFirebaseOptions {
           appId: iosAppId,
           messagingSenderId: messagingSenderId,
           projectId: androidProjectId,
-          databaseURL: 'https://${androidProjectId}.firebaseio.com',
-          storageBucket: '${androidProjectId}.appspot.com',
+          iosBundleId: iosBundleId,
+          databaseURL: 'https://$androidProjectId.firebaseio.com',
+          storageBucket: storageBucket,
+          measurementId: measurementId.isEmpty ? null : measurementId,
         );
       default:
         throw UnsupportedError(

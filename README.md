@@ -1,10 +1,10 @@
-# AI SDK
+# Qubrix
 
 An adaptive, personalized AI automation platform for mobile applications.
 
 ## Overview
 
-The AI SDK is a Flutter/Dart package that provides adaptive AI capabilities including:
+Qubrix is a Flutter/Dart package that provides adaptive AI capabilities including:
 - Model management (download, verify, load, unload from HuggingFace)
 - Task execution with multiple task types
 - Personalization engine (3-layer: Preferences, History, Behavior Patterns)
@@ -81,21 +81,21 @@ Add the SDK to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  ai_sdk:
-    path: ../path/to/ai_sdk
+  qubrix:
+    path: ../path/to/qubrix
 ```
 
 Or for published version:
 
 ```yaml
 dependencies:
-  ai_sdk: ^1.0.0
+  qubrix: ^1.0.0
 ```
 
 ### Usage
 
 ```dart
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 
 void main() async {
   // Initialize the SDK
@@ -151,7 +151,7 @@ The example app demonstrates:
 ```
 dart/
 ├── lib/
-│   ├── ai_sdk.dart              # Main export file
+│   ├── qubrix.dart              # Main export file
 │   └── src/
 │       ├── agent/               # AdaptiveAgentEngine
 │       ├── model/               # Model management

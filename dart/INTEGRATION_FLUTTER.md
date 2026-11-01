@@ -1,6 +1,6 @@
-# AI SDK - Flutter Integration Guide
+# Qubrix - Flutter Integration Guide
 
-This guide explains how to integrate the AI SDK into a Flutter application. The SDK has its own Firebase configuration for Remote Config, separate from the host app's Firebase.
+This guide explains how to integrate Qubrix into a Flutter application. The SDK has its own Firebase configuration for Remote Config, separate from the host app's Firebase.
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ This guide explains how to integrate the AI SDK into a Flutter application. The 
 
 ## Overview
 
-The AI SDK is a Flutter/Dart package that provides adaptive AI capabilities including:
+Qubrix is a Flutter/Dart package that provides adaptive AI capabilities including:
 - Model management (download, verify, load, unload)
 - Task execution with multiple task types
 - Personalization engine (3-layer)
@@ -85,22 +85,22 @@ Add the SDK as a dependency in your Flutter project's `pubspec.yaml`:
 **For local development:**
 ```yaml
 dependencies:
-  ai_sdk:
-    path: ../path/to/ai_sdk
+  qubrix:
+    path: ../path/to/qubrix
 ```
 
 **For published version:**
 ```yaml
 dependencies:
-  ai_sdk: ^1.0.0
+  qubrix: ^1.0.0
 ```
 
 **For Git repository:**
 ```yaml
 dependencies:
-  ai_sdk:
+  qubrix:
     git:
-      url: https://github.com/your-org/ai_sdk.git
+      url: https://github.com/your-org/qubrix.git
       ref: main
 ```
 
@@ -125,7 +125,7 @@ cd ..
 ### Step 1: Create Firebase Project for SDK
 
 1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Create a new project (e.g., "AI SDK Demo")
+2. Create a new project (e.g., "Qubrix Demo")
 3. Add Android and iOS apps to the project
    - Android: Use your app's package name or a custom one
    - iOS: Use your app's bundle ID or a custom one
@@ -203,7 +203,7 @@ The SDK's Firebase is separate and doesn't conflict with your app's Firebase.
 ### Basic Initialization
 
 ```dart
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 
 // Initialize the SDK
 final engine = AdaptiveAgentEngine();

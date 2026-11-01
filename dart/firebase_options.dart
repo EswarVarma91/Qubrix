@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
-/// Default Firebase options for the AI SDK.
+/// Default Firebase options for the Qubrix.
 ///
 /// These are the SDK's own Firebase configuration.
 /// The SDK uses these to initialize its own Firebase instance

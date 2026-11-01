@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/firebase_remote_config.dart';
 import '../../core/utils/router.dart';
@@ -229,7 +229,7 @@ class HomeController extends GetxController {
   void navigateToHome() => Get.offAllNamed(AppRoutes.home);
   void navigateToSecurity() => showSnackbar('Security: ${_integrityStatus.value}', isSuccessful: !_tamperWarning.value);
   void navigateToModels() => showSnackbar('${installedModelsCount} models installed', isSuccessful: true);
-  void showAbout() => showSnackbar('AI SDK Demo v${AppStrings.appVersion}', isSuccessful: true);
+  void showAbout() => showSnackbar('Qubrix Demo v${AppStrings.appVersion}', isSuccessful: true);
 
   void clearModelCache() async {
     _isLoading.value = true;
@@ -281,7 +281,7 @@ class HomeController extends GetxController {
 
   void showSnackbar(String message, {bool isSuccessful = true}) {
     Get.snackbar(
-      'AI SDK',
+      'Qubrix',
       message,
       snackPosition: SnackPosition.BOTTOM,
       duration: const Duration(seconds: 3),

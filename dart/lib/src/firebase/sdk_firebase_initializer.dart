@@ -35,7 +35,7 @@ class SdkFirebaseInitializer {
   /// own Firebase instance.
   ///
   /// Returns the Firebase app instance to use for the SDK.
-  static Future<FirebaseApp> initialize({String appName = 'ai_sdk'}) async {
+  static Future<FirebaseApp> initialize({String appName = 'qubrix'}) async {
     // Check if host app has Firebase
     _hostAppHasFirebase = Firebase.apps.isNotEmpty;
 
@@ -90,7 +90,7 @@ class SdkFirebaseInitializer {
   }
 
   /// Get the current Firebase app for the SDK.
-  static FirebaseApp getSdkApp({String appName = 'ai_sdk'}) {
+  static FirebaseApp getSdkApp({String appName = 'qubrix'}) {
     try {
       return Firebase.app(appName);
     } catch (e) {
@@ -112,8 +112,10 @@ class SdkFirebaseInitializer {
 
   /// Get SDK Firebase options.
   ///
-  /// These need to be replaced with actual Firebase credentials.
+  /// Credentials live in [SdkFirebaseOptions] (Firebase project qubrix-77954).
   static FirebaseOptions _getSdkOptions() {
+    // Single source of truth: values from google-services.json /
+    // GoogleService-Info.plist, kept in SdkFirebaseOptions.
     return SdkFirebaseOptions.currentPlatform;
   }
 
