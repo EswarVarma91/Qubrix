@@ -200,6 +200,38 @@ Customer data remains safe via encryption and key isolation.
 
 See `dart/pubspec.yaml` for the Flutter SDK package.
 
+## Integration Guides
+
+### Flutter Integration
+See [`dart/INTEGRATION_FLUTTER.md`](dart/INTEGRATION_FLUTTER.md) for:
+- Adding AI SDK as a Flutter package dependency
+- Using GetX + get_it for state management
+- Firebase Remote Config setup
+- Complete user flow documentation
+
+### Android Native Integration
+See [`dart/INTEGRATION_ANDROID_NATIVE.md`](dart/INTEGRATION_ANDROID_NATIVE.md) for:
+- Flutter module integration in native Android apps
+- Platform channels for native Android
+- Firebase setup for Android
+- Handling callbacks from Flutter
+
+### iOS Native Integration
+See [`dart/INTEGRATION_IOS_NATIVE.md`](dart/INTEGRATION_IOS_NATIVE.md) for:
+- Flutter module integration in native iOS apps
+- Platform channels for native iOS
+- Firebase setup for iOS (GoogleService-Info.plist)
+- Handling callbacks from Flutter
+
+## Documentation Index
+
+| Document | Description |
+|----------|-------------|
+| `dart/INTEGRATION_FLUTTER.md` | Flutter integration guide |
+| `dart/INTEGRATION_ANDROID_NATIVE.md` | Android native integration guide |
+| `dart/INTEGRATION_IOS_NATIVE.md` | iOS native integration guide |
+| `dart/example/lib/core/firebase_setup.dart` | Firebase setup helper (Dart) |
+
 ## Development Roadmap
 
 - Phase 1: Android inference prototype
