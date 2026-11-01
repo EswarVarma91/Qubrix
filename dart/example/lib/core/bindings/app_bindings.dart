@@ -159,10 +159,9 @@ Future<void> initializeDependencies() async {
   // Repositories
   getIt.registerLazySingleton<AiRepository>(() => AiRepository(getIt()));
 
-  // Firebase Remote Config for model configuration
-  final firebaseConfig = FirebaseRemoteConfigService();
-  await firebaseConfig.initialize();
-  getIt.registerSingleton<FirebaseRemoteConfigService>(firebaseConfig);
+  // Model configuration from Firebase Remote Config
+  final modelConfig = ModelConfigService();
+  getIt.registerSingleton<ModelConfigService>(modelConfig);
 }
 
 /// GetX bindings for screens
@@ -173,7 +172,7 @@ class HomeBinding extends Bindings {
       () => HomeController(
         engine: Get.find<AdaptiveAgentEngine>(),
         repository: Get.find<AiRepository>(),
-        firebaseConfig: Get.find<FirebaseRemoteConfigService>(),
+        modelConfig: Get.find<ModelConfigService>(),
       ),
       tag: 'homeController',
     );

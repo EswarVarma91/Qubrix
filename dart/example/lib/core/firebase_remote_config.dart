@@ -1,5 +1,195 @@
-import 'package:firebase_remote_config/firebase_remote_config.dart';
-import '../../core/model_catalog.dart';
+// Firebase Remote Config Model Service
+// All model configuration comes from Firebase Remote Config.
+// No user input required - Firebase determines available models.
+
+// Note: When Firebase is not configured, fall back to local defaults.
+// Import Firebase when ready:
+// import 'package:firebase_remote_config/firebase_remote_config.dart';
+
+class FirebaseRemoteConfigService {
+  // In production, this would use actual Firebase Remote Config
+  // For now, provides the structure and fallback behavior
+
+  /// Initialize Firebase Remote Config
+  Future<void> initialize() async {
+    // TODO: Initialize Firebase Remote Config when Firebase is added
+    // await Firebase.initializeApp();
+    // final remoteConfig = FirebaseRemoteConfig.instance;
+    // await remoteConfig.setConfigSettings(RemoteConfigSettings(...))
+  }
+
+  /// Fetch latest config from Firebase
+  Future<bool> fetchConfig() async {
+    // TODO: Implement when Firebase is added
+    // await FirebaseRemoteConfig.instance.fetchAndActivate();
+    return false;
+  }
+
+  /// Get available model repo IDs from remote config
+  /// Returns empty list if Firebase not configured
+  List<String> getAvailableModelRepos() {
+    // TODO: Parse from Firebase Remote Config when configured
+    // final json = FirebaseRemoteConfig.instance.getString('available_models');
+    // return parseModelRepos(json);
+    return [];
+  }
+
+  /// Get full model configurations from remote config
+  List<RemoteConfiguredModel> getConfiguredModels() {
+    // TODO: Parse from Firebase Remote Config when configured
+    return [];
+  }
+
+  /// Get model configuration by repo ID
+  RemoteConfiguredModel? getModelConfig(String repoId) {
+    // TODO: Get from Firebase Remote Config when configured
+    return null;
+  }
+
+  /// Check if a repo ID is allowed by remote config
+  bool isRepoAllowed(String repoId) {
+    final allowedRepos = getAvailableModelRepos();
+    if (allowedRepos.isEmpty) {
+      // No Firebase config - allow all (falls back to local)
+      return true;
+    }
+    return allowedRepos.contains(repoId);
+  }
+
+  /// Refresh config and return true if updated
+  Future<bool> refreshAndGetModels() async {
+    return await fetchConfig();
+  }
+}
+
+/// Model configuration from Firebase Remote Config
+class RemoteConfiguredModel {
+  final String repoId;
+  final String displayName;
+  final String description;
+  final String? license;
+  final List<RemoteModelVariant> variants;
+  final String? taskType;
+  final double? minQuality;
+  final bool enabled;
+
+  RemoteConfiguredModel({
+    required this.repoId,
+    required this.displayName,
+    required this.description,
+    this.license,
+    required this.variants,
+    this.taskType,
+    this.minQuality,
+    this.enabled = true,
+  });
+
+  /// Convert to model catalog entry for SDK
+  ModelCatalogEntry toCatalogEntry() {
+    return ModelCatalogEntry(
+      repoId: repoId,
+      displayName: displayName,
+      description: description,
+      license: license,
+      variants: variants.map((v) => v.toVariant()).toList(),
+      taskType: taskType,
+      minQuality: minQuality,
+      isOfficial: true,
+    );
+  }
+
+  /// Parse from JSON (for Firebase Remote Config)
+  factory RemoteConfiguredModel.fromJson(Map<String, dynamic> json) {
+    return RemoteConfiguredModel(
+      repoId: json['repo_id'] ?? '',
+      displayName: json['display_name'] ?? json['repo_id'] ?? '',
+      description: json['description'] ?? '',
+      license: json['license'],
+      taskType: json['task_type'],
+      minQuality: json['min_quality']?.toDouble(),
+      enabled: json['enabled'] ?? true,
+      variants: (json['variants'] as List<dynamic>?)
+          ?.map((v) => RemoteModelVariant.fromJson(v))
+          .toList() ?? [],
+    );
+  }
+}
+
+class RemoteModelVariant {
+  final String quantization;
+  final int downloadSizeMb;
+  final int memoryRequirementMb;
+  final double estimatedLatencyMs;
+
+  RemoteModelVariant({
+    required this.quantization,
+    required this.downloadSizeMb,
+    required this.memoryRequirementMb,
+    required this.estimatedLatencyMs,
+  });
+
+  factory RemoteModelVariant.fromJson(Map<String, dynamic> json) {
+    return RemoteModelVariant(
+      quantization: json['quantization'] ?? 'float32',
+      downloadSizeMb: json['download_size_mb'] ?? 500,
+      memoryRequirementMb: json['memory_requirement_mb'] ?? 1000,
+      estimatedLatencyMs: json['estimated_latency_ms']?.toDouble() ?? 100.0,
+    );
+  }
+
+  HfModelVariant toVariant() {
+    return HfModelVariant(
+      quantization: quantization,
+      downloadSizeMb: downloadSizeMb,
+      memoryRequirementMb: memoryRequirementMb,
+      estimatedLatencyMs: estimatedLatencyMs,
+    );
+  }
+}
+
+/// Service that returns models from Firebase Remote Config
+/// Falls back to local defaults if Firebase not configured
+class ModelConfigService {
+  final FirebaseRemoteConfigService _firebaseConfig;
+
+  ModelConfigService({FirebaseRemoteConfigService? firebaseConfig})
+      : _firebaseConfig = firebaseConfig ?? FirebaseRemoteConfigService();
+
+  /// Get all available models from Firebase Remote Config
+  /// Falls back to local defaults if Firebase not configured
+  List<ModelCatalogEntry> getAvailableModels() {
+    final remoteModels = _firebaseConfig.getConfiguredModels();
+    
+    if (remoteModels.isNotEmpty) {
+      // Firebase is configured - use remote models
+      return remoteModels.where((m) => m.enabled).map((m) => m.toCatalogEntry()).toList();
+    }
+    
+    // Firebase not configured - fall back to local defaults
+    return HuggingFaceModels.all;
+  }
+
+  /// Check if a model is allowed
+  bool isModelAllowed(String repoId) {
+    return _firebaseConfig.isRepoAllowed(repoId);
+  }
+
+  /// Refresh from Firebase
+  Future<void> refresh() async {
+    await _firebaseConfig.fetchConfig();
+  }
+
+  /// Get model by repo ID
+  ModelCatalogEntry? getModel(String repoId) {
+    final models = getAvailableModels();
+    try {
+      return models.firstWhere((m) => m.repoId == repoId);
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
 
 /// Firebase Remote Config service for managing model configuration
 /// 

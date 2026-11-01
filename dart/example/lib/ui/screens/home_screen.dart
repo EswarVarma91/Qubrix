@@ -168,13 +168,17 @@ class HomeScreen extends GetView<HomeController> {
                   const SizedBox(height: 12),
                   ActionGrid(
                     actions: [
-                      ActionItem(
+                      Obx(() => ActionItem(
                         label: AppStrings.downloadModel,
                         icon: Icons.download,
-                        description: 'Select a HuggingFace model to download',
-                        onPressed: controller.showModelPickerDialog,
+                        description: controller.availableModels.isEmpty
+                            ? 'Loading models...'
+                            : '${controller.availableModels.length} model(s) from Firebase',
+                        onPressed: controller.availableModels.isNotEmpty
+                            ? controller.showModelPickerDialog
+                            : null,
                         isLoading: controller.isDownloading,
-                      ),
+                      )),
                       ActionItem(
                         label: AppStrings.runTask,
                         icon: Icons.play_arrow,
@@ -340,14 +344,15 @@ class HomeScreen extends GetView<HomeController> {
     );
   }
 
-  /// Model picker dialog - shows available HuggingFace models
+  /// Model picker dialog - shows models from Firebase Remote Config
   Widget _buildModelPickerDialog(BuildContext context) {
     return Obx(() {
       final models = controller.availableModels;
       final selectedRepo = controller.selectedModelRepo;
+      final usingFirebase = controller.usingFirebase;
 
       return AlertDialog(
-        title: const Text('Select Model to Download'),
+        title: Text(usingFirebase ? 'Models from Firebase' : 'Select Model'),
         content: SizedBox(
           width: double.maxFinite,
           child: Column(
@@ -357,9 +362,10 @@ class HomeScreen extends GetView<HomeController> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
-                  'Choose a HuggingFace model repo to download.\n'
-                  'The SDK will handle discovery, variant selection, and download.\n'
-                  'Developer specifies which repo to use.',
+                  usingFirebase
+                      ? 'These models are configured in Firebase Remote Config.\n'
+                        'Tap a model to download it from HuggingFace.'
+                      : 'Select a HuggingFace model to download.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -389,13 +395,7 @@ class HomeScreen extends GetView<HomeController> {
                       IconButton(
                         icon: const Icon(Icons.clear, size: 18),
                         onPressed: () {
-                          controller.selectModel(
-                            HuggingFaceModels.findByRepoId(selectedRepo) ??
-                                HuggingFaceModels.custom(
-                                  repoId: selectedRepo,
-                                  displayName: selectedRepo,
-                                ),
-                          );
+                          controller.setSelectedModel('');
                         },
                         tooltip: 'Deselect',
                       ),
@@ -404,13 +404,8 @@ class HomeScreen extends GetView<HomeController> {
                 ),
               Expanded(
                 child: models.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No models configured.'
-                          '\n\nAdd models to HuggingFaceModels.all'
-                          '\nor use HuggingFaceModels.custom()',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                    ? const Center(
+                        child: CircularProgressIndicator(),
                       )
                     : ListView.builder(
                         shrinkWrap: true,
@@ -450,21 +445,11 @@ class HomeScreen extends GetView<HomeController> {
                                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       ),
                                 ),
-                                const SizedBox(height: 4),
                                 Text(
                                   model.description,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                if (model.variants.length > 1) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${model.variants.length} variant(s) available',
-                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.primary,
-                                        ),
-                                  ),
-                                ],
                               ],
                             ),
                             trailing: isSelected

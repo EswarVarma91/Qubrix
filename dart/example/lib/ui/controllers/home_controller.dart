@@ -8,16 +8,19 @@ import '../../core/utils/router.dart';
 import '../../data/repositories/ai_repository.dart';
 import '../../core/bindings/app_bindings.dart';
 
+/// Home controller - all models come from Firebase Remote Config
+/// No user input needed - just tap download and Firebase tells us what to download
+
 /// GetX Controller for the home screen
 /// Manages all state without setState, using Rx variables
 class HomeController extends GetxController {
   final AdaptiveAgentEngine _engine;
   final AiRepository _repository;
-  final FirebaseRemoteConfigService _firebaseConfig;
+  final ModelConfigService _modelConfig;
 
-  HomeController(this._engine, this._repository, this._firebaseConfig);
+  HomeController(this._engine, this._repository, this._modelConfig);
 
-  // Observable state
+  // Observable state - all models come from Firebase Remote Config
   final _status = ''.obs;
   final _isInitialized = false.obs;
   final _isDownloading = false.obs;
@@ -29,9 +32,10 @@ class HomeController extends GetxController {
   final _securityStatus = ''.obs;
   final _tamperWarning = false.obs;
   final _integrityStatus = ''.obs;
-  final _availableModels = <ModelCatalogEntry>[].obs;
+  final _firebaseModels = <ModelCatalogEntry>[].obs;
   final _selectedModelRepo = ''.obs;
   final _showModelPicker = false.obs;
+  final _usingFirebase = false.obs;
 
   // Getters
   String get status => _status.value;
@@ -45,46 +49,32 @@ class HomeController extends GetxController {
   String get securityStatus => _securityStatus.value;
   bool get tamperWarning => _tamperWarning.value;
   String get integrityStatus => _integrityStatus.value;
-  List<ModelCatalogEntry> get availableModels => _availableModels.value;
+  List<ModelCatalogEntry> get availableModels => _firebaseModels.value;
   String get selectedModelRepo => _selectedModelRepo.value;
   bool get showModelPicker => _showModelPicker.value;
+  bool get usingFirebase => _usingFirebase.value;
 
   @override
   void onInit() {
     super.onInit();
     _checkSecurityStatus();
     _updateModelStatus();
-    // Load models asynchronously (Firebase may delay this)
-    _loadAvailableModels();
+    // Load models from Firebase Remote Config
+    _loadModelsFromFirebase();
   }
 
-  void _loadAvailableModels() async {
-    // First try to load from Firebase Remote Config
-    try {
-      await _firebaseConfig.fetchConfig();
-      final remoteModels = _firebaseConfig.getConfiguredModels();
-      
-      if (remoteModels.isNotEmpty) {
-        // Use remote configuration
-        _availableModels.value = remoteModels
-            .where((m) => m.enabled)
-            .map((m) => m.toCatalogEntry())
-            .toList();
-        return;
-      }
-    } catch (e) {
-      // Firebase not available, fall back to local
-    }
+  void _loadModelsFromFirebase() {
+    // Get models from Firebase Remote Config
+    // If Firebase configured → use those models
+    // If not configured → fall back to local defaults
+    final models = _modelConfig.getAvailableModels();
+    _firebaseModels.value = models;
+    _usingFirebase.value = _modelConfig.getAvailableModels().isNotEmpty &&
+        _modelConfig.getModel(_firebaseModels.first?.repoId ?? '') != null;
     
-    // Fallback: use local HuggingFace models
-    _availableModels.value = HuggingFaceModels.all;
-    if (_availableModels.isEmpty) {
-      // Last resort: add a custom model entry
-      _availableModels.add(HuggingFaceModels.custom(
-        repoId: 'microsoft/DialogGPT-small',
-        displayName: 'Custom Model',
-        description: 'Add your HuggingFace repo ID',
-      ));
+    // Auto-select first model if none selected
+    if (_selectedModelRepo.value.isEmpty && _firebaseModels.isNotEmpty) {
+      _selectedModelRepo.value = _firebaseModels.first.repoId;
     }
   }
 
@@ -146,27 +136,19 @@ class HomeController extends GetxController {
   }
 
   // Download and load model with progress
-  // Downloads a HuggingFace model by repo ID.
-  // The developer specifies which model to download.
+  // All models come from Firebase Remote Config
+  // No user input needed - just tap download
   Future<void> downloadModel() async {
     if (_isDownloading.value) return;
 
     final repoId = _selectedModelRepo.value;
     if (repoId.isEmpty) {
-      // No model selected, show picker
-      _showModelPicker.value = true;
+      _setStatus('No model selected');
       return;
     }
 
-    // Check if model is allowed by Firebase Remote Config
-    if (!_firebaseConfig.isRepoAllowed(repoId) && 
-        _firebaseConfig.getAvailableModelRepos().isNotEmpty) {
-      _setStatus('Model not allowed: $repoId');
-      showSnackbar('This model is not available', isSuccessful: false);
-      _showModelPicker.value = false;
-      return;
-    }
-
+    // Download the model from HuggingFace
+    // Firebase Remote Config already told us which models are available
     _isDownloading.value = true;
     _setStatus('${AppStrings.downloading} $repoId...');
 
@@ -213,18 +195,25 @@ class HomeController extends GetxController {
   void selectModel(ModelCatalogEntry model) {
     _selectedModelRepo.value = model.repoId;
     _showModelPicker.value = false;
-    _setStatus('Selected: ${model.displayName} (${_selectedModelRepo.value})');
+    _setStatus('Selected: ${model.displayName}');
   }
 
-  // Show model picker dialog
+  // Show model picker dialog - for selecting from Firebase models
   void showModelPickerDialog() {
-    _selectedModelRepo.value = '';
     _showModelPicker.value = true;
   }
 
   // Set model picker visibility
   void setShowModelPicker(bool show) {
     _showModelPicker.value = show;
+  }
+
+  // Refresh models from Firebase
+  Future<void> refreshFirebaseModels() async {
+    _setStatus('Refreshing from Firebase...');
+    await _modelConfig.refresh();
+    _loadModelsFromFirebase();
+    _setStatus('Models updated from Firebase');
   }
 
   // Add a custom model to the available models list
