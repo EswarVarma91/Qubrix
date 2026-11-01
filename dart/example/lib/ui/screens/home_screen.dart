@@ -51,6 +51,97 @@ class HomeScreen extends GetView<HomeController> {
 
                   const SizedBox(height: 24),
 
+                  // Security status card
+                  Obx(() {
+                    if (controller.tamperWarning) {
+                      return Card(
+                        color: AppColors.error.withValue(0.1),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.security,
+                                color: AppColors.error,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Security Alert',
+                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                            color: AppColors.error,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'SDK integrity may be compromised!',
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                            color: AppColors.error,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.refresh, color: AppColors.error),
+                                onPressed: controller.refreshSecurityStatus,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                    return Card(
+                      color: AppColors.success.withValue(0.1),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.security,
+                              color: AppColors.success,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Security Status',
+                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    controller.securityStatus,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: AppColors.success,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.refresh, size: 20),
+                              onPressed: controller.refreshSecurityStatus,
+                              tooltip: 'Refresh security check',
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+
+                  const SizedBox(height: 24),
+
                   // Model progress (if downloading/loading)
                   Obx(() {
                     if (controller.isDownloading || controller.progress != null) {

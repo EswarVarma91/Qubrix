@@ -13,6 +13,13 @@ library ai_sdk;
 // Core types
 export 'src/core/types.dart';
 
+// Security
+export 'src/core/security/security_config.dart';
+export 'src/core/security/integrity_verifier.dart';
+export 'src/core/security/permission_guard.dart';
+export 'src/core/security/tamper_detector.dart';
+export 'src/core/security/data_protector.dart';
+
 // Model management
 export 'src/model/model_types.dart';
 export 'src/model/model_manager.dart';

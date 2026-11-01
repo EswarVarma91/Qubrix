@@ -2,11 +2,45 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 import '../../data/repositories/ai_repository.dart';
+import 'package:ai_sdk/ai_sdk.dart' show IntegrityVerifier;
 
 final getIt = GetIt.instance;
 
 /// Initialize all dependencies
 Future<void> initializeDependencies() async {
+  // Initialize security components
+  final securityConfig = SecurityConfig(
+    enabled: true,
+    requireModelVerification: true,
+    requireActionAuthorization: true,
+    enableTamperDetection: true,
+    encryptionEnabled: true,
+    logSecurityEvents: true,
+    allowedModelSources: ['official'],
+    blockedActionCategories: ['malicious'],
+    requireConfirmationForSensitiveActions: true,
+    minModelIntegrityScore: 0.8,
+  );
+
+  // Initialize tamper detector and verify SDK integrity on startup
+  final tamperDetector = TamperDetector(securityConfig);
+  final integrityStatus = await tamperDetector.verifySdkIntegrity();
+  
+  if (!integrityStatus.ok) {
+    // In production: handle compromised state (e.g., refuse to run)
+    print('WARNING: SDK integrity compromised! Checks failed: ${integrityStatus.failedChecks}');
+  }
+
+  getIt.registerSingleton<SecurityConfig>(securityConfig);
+  getIt.registerSingleton<IntegrityVerifier>(IntegrityVerifier(securityConfig));
+  getIt.registerSingleton<TamperDetector>(tamperDetector);
+  getIt.registerLazySingleton<PermissionGuard>(
+    () => PermissionGuard(securityConfig),
+  );
+  getIt.registerLazySingleton<DataProtector>(
+    () => DataProtector(securityConfig),
+  );
+
   // AI SDK Engine
   final engine = AdaptiveAgentEngine(
     config: AgentEngineConfig(

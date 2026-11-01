@@ -6,6 +6,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import '../core/security/integrity_verifier.dart';
 import 'model_types.dart';
 
 /// Result of a model download operation
@@ -180,12 +181,17 @@ class ModelManager {
   // Download controller for cancellation
   final Map<String, CancelToken> _downloadTokens = {};
 
+  // Security
+  IntegrityVerifier? _integrityVerifier;
+
   ModelManager({
     required this.catalog,
     this.compatibilityEngine,
     ModelStorageLocation storageLocation = ModelStorageLocation.appInternal,
+    IntegrityVerifier? integrityVerifier,
   })  : _storageLocation = storageLocation,
-        _baseStoragePath = null;
+        _baseStoragePath = null,
+        _integrityVerifier = integrityVerifier;
 
   /// Initialize the model manager
   Future<void> initialize() async {
@@ -295,25 +301,58 @@ class ModelManager {
             : null,
       );
 
-      // Phase 2: Verify downloaded files (simulated)
-      if (onProgress != null) {
-        onProgress(ModelProgress(
+      // Phase 2: Verify downloaded files with integrity check
+      if (_integrityVerifier != null && variant.checksum != null) {
+        // Perform cryptographic integrity verification
+        final verificationResult = await _integrityVerifier!.verifyModelIntegrity(
           modelId: modelId,
-          operation: ModelOperationType.verifying,
-          progress: 0,
-          total: 100,
-          percent: 0,
-          status: 'Verifying download...',
-        ));
-        await Future.delayed(const Duration(milliseconds: 100));
-        onProgress(ModelProgress(
-          modelId: modelId,
-          operation: ModelOperationType.verifying,
-          progress: 100,
-          total: 100,
-          percent: 1.0,
-          status: 'Verification complete',
-        ));
+          modelData: _downloadedData, // Would be actual downloaded bytes
+          expectedHash: variant.checksum!,
+        );
+
+        if (!verificationResult.success) {
+          _downloads.remove(modelId);
+          _installing.remove(modelId);
+          _downloadTokens.remove(modelId);
+
+          return ModelDownloadResult.failure(
+            'Integrity verification failed: ${verificationResult.reason}',
+          );
+        }
+
+        if (onProgress != null) {
+          onProgress(ModelProgress(
+            modelId: modelId,
+            operation: ModelOperationType.verifying,
+            progress: 100,
+            total: 100,
+            percent: 1.0,
+            status: 'Verification: ${verificationResult.score.toStringAsFixed(2)} integrity score',
+            detail: verificationResult.details,
+          ));
+        }
+      } else {
+        // Simulated verification for demo
+        if (onProgress != null) {
+          onProgress(ModelProgress(
+            modelId: modelId,
+            operation: ModelOperationType.verifying,
+            progress: 0,
+            total: 100,
+            percent: 0,
+            status: 'Verifying download...',
+          ));
+          await Future.delayed(const Duration(milliseconds: 100));
+          onProgress(ModelProgress(
+            modelId: modelId,
+            operation: ModelOperationType.verifying,
+            progress: 100,
+            total: 100,
+            percent: 1.0,
+            status: 'Verification complete (simulated)',
+            detail: 'Enable IntegrityVerifier for real verification',
+          ));
+        }
       }
 
       // Phase 3: Load model into memory (simulated)

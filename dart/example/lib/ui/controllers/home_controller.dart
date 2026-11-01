@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 import '../../core/utils/router.dart';
 import '../../data/repositories/ai_repository.dart';
+import '../../core/bindings/app_bindings.dart';
 
 /// GetX Controller for the home screen
 /// Manages all state without setState, using Rx variables
@@ -21,6 +22,9 @@ class HomeController extends GetxController {
   final _installedModelsCount = 0.obs;
   final _isModelLoaded = false.obs;
   final _healthStatus = ''.obs;
+  final _securityStatus = ''.obs;
+  final _tamperWarning = false.obs;
+  final _integrityStatus = ''.obs;
 
   // Getters
   String get status => _status.value;
@@ -31,11 +35,41 @@ class HomeController extends GetxController {
   int get installedModelsCount => _installedModelsCount.value;
   bool get isModelLoaded => _isModelLoaded.value;
   String get healthStatus => _healthStatus.value;
+  String get securityStatus => _securityStatus.value;
+  bool get tamperWarning => _tamperWarning.value;
+  String get integrityStatus => _integrityStatus.value;
 
   @override
   void onInit() {
     super.onInit();
+    _checkSecurityStatus();
     _updateModelStatus();
+  }
+
+  void _checkSecurityStatus() {
+    final tamperDetector = getIt<TamperDetector>();
+    
+    _securityStatus.value = tamperDetector.isSdkIntegrityVerified
+        ? 'Security: Protected'
+        : 'Security: Compromised!';
+    
+    _tamperWarning.value = !tamperDetector.isSdkIntegrityVerified;
+    _integrityStatus.value = tamperDetector.getIntegrityReport();
+  }
+
+  Future<void> refreshSecurityStatus() async {
+    final tamperDetector = getIt<TamperDetector>();
+    final status = await tamperDetector.verifySdkIntegrity();
+    
+    _securityStatus.value = status.ok
+        ? 'Security: Protected'
+        : 'Security: Compromised!';
+    _tamperWarning.value = !status.ok;
+    _integrityStatus.value = tamperDetector.getIntegrityReport();
+    
+    if (!status.ok) {
+      showSnackbar('Security warning: ${status.message}', isSuccessful: false);
+    }
   }
 
   // Initialize engine
