@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   ai_sdk:
     path: ../
+  get: ^4.6.6
+  get_it: ^7.6.7
 
 dev_dependencies:
   flutter_test:
