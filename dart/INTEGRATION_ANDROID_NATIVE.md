@@ -1,277 +1,321 @@
-# Android Native Integration Guide
+# AI SDK - Native Android Integration Guide
 
-This guide shows how to integrate the AI SDK into a native Android (Kotlin/Java) application.
+This guide explains how to integrate the AI SDK into a native Android application. The SDK has its own Firebase configuration for Remote Config, separate from the host app's Firebase.
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [SDK Firebase Architecture](#sdk-firebase-architecture)
+3. [Prerequisites](#prerequisites)
+4. [Add SDK Dependencies](#add-sdk-dependencies)
+5. [SDK Firebase Configuration](#sdk-firebase-configuration)
+6. [Host App Firebase (Optional)](#host-app-firebase-optional)
+7. [SDK Initialization](#sdk-initialization)
+8. [Model Download](#model-download)
+9. [Task Execution](#task-execution)
+10. [Security Features](#security-features)
+11. [Troubleshooting](#troubleshooting)
+
+---
 
 ## Overview
 
-The AI SDK is a Flutter/Dart package. For native Android integration, you have two options:
+The AI SDK is a Flutter/Dart package that provides adaptive AI capabilities. It can be integrated into native Android apps via platform channels or by building the Flutter module as an Android library.
 
-1. **Flutter Module** - Embed the Flutter example app as a module in your Android app
-2. **Platform Channels** - Create a Flutter plugin that exposes SDK functionality via platform channels
-
-This guide covers Option 1 (Flutter Module) as it's the simplest approach.
+The SDK includes its own Firebase configuration for Remote Config. This allows the SDK to fetch the HuggingFace model URL regardless of whether the host app has Firebase or not.
 
 ---
 
-## Option 1: Flutter Module Integration
+## SDK Firebase Architecture
 
-### Step 1: Create Flutter Module
+The SDK has two potential Firebase configurations:
 
-```bash
-# In your project directory
-flutter create -t module --org com.yourcompany ai_sdk_module
-```
+### 1. SDK's Firebase (Required for Remote Config)
 
-This creates `ai_sdk_module/` with:
-- `lib/` - Dart code
-- `android/` - Android wrapper
-- `ios/` - iOS wrapper
+The SDK manages its own Firebase app for Remote Config. This is configured in the SDK's own Firebase project.
 
-### Step 2: Add AI SDK to Flutter Module
+**Purpose:** Fetch the HuggingFace model URL from Firebase Remote Config.
 
-Edit `ai_sdk_module/pubspec.yaml`:
+**Configuration:** `SdkFirebaseOptions` in the SDK's codebase.
+
+**When used:** Always - the SDK needs this for Remote Config.
+
+### 2. Host App's Firebase (Optional)
+
+The host Android app may have its own Firebase project for its own features (analytics, auth, crashlytics, etc.).
+
+**Purpose:** Host app features.
+
+**Configuration:** Host app's Firebase project (google-services.json in app/).
+
+**When used:** Only if the host app wants Firebase features.
+
+### Firebase Configuration Hierarchy
+
+1. If host app provides Firebase with Remote Config for model URL → SDK can use host app's Firebase (optional)
+2. If host app has Firebase but no Remote Config for model URL → SDK uses its own Firebase
+3. If host app has no Firebase → SDK uses its own Firebase
+
+This ensures the SDK always has access to Remote Config for fetching the HuggingFace model URL.
+
+---
+
+## Prerequisites
+
+- Android Studio or IntelliJ IDEA
+- Android SDK (API 21+)
+- Flutter SDK (if building as Flutter module)
+- Firebase project for the SDK (for Remote Config)
+
+---
+
+## Add SDK Dependencies
+
+### Option 1: Use SDK as a Flutter Module
+
+If your Android app uses Flutter, add the SDK as a dependency in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter:
-    sdk: flutter
   ai_sdk:
-    path: ../path/to/ai_sdk/dart
-  get: ^4.6.6
-  get_it: ^7.6.7
+    path: ../path/to/ai_sdk
 ```
 
-### Step 3: Add Flutter Module to Android Project
+### Option 2: Use SDK via Platform Channel
 
-In your Android app's `settings.gradle`:
+If your Android app is pure native, you can communicate with the SDK via platform channels. The SDK would run as a Flutter module.
 
-```gradle
-include ':ai_sdk_module'
-project(':ai_sdk_module').projectDir = new File(settingsDir, '../ai_sdk_module')
-```
+### Option 3: Build as AAR (Android Archive)
 
-In your app's `build.gradle`:
+Build the Flutter module as an Android library (AAR) and include it in your app.
 
-```gradle
-dependencies {
-    implementation project(':ai_sdk_module')
-}
-```
+---
 
-### Step 4: Initialize Flutter Engine
+## SDK Firebase Configuration
 
-In your Android Activity:
+### Step 1: Create Firebase Project for SDK
 
-```kotlin
-// MainActivity.kt
-import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.embedding.engine.dart.DartExecutor
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. Create a new project (e.g., "AI SDK Demo")
+3. Add an Android app to the project
+   - Package name: Use your app's package or a custom one for the SDK
+4. Download `google-services.json`
+5. Add an iOS app (if needed)
+6. Download `GoogleService-Info.plist`
 
-class MainActivity : FlutterActivity() {
-    private var flutterEngine: FlutterEngine? = null
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // Create Flutter engine once and reuse
-        if (flutterEngine == null) {
-            flutterEngine = FlutterEngine(this)
-            val dartExecutable = DartExecutor.DartEntrypoint(
-                projectReference,
-                "main"
-            )
-            flutterEngine?.dartExecutor?.executeDartEntrypoint(dartExecutable)
-        }
-
-        // Optionally push route
-        val controller = flutterEngine?.stringChannelRegistry?.getController("route")
-        controller?.send("home")
-    }
-
-    override fun provideFlutterEngine(context: Context): FlutterEngine? {
-        return flutterEngine
-    }
-}
-```
-
-### Step 5: Add Firebase to Android
-
-1. **Download google-services.json** from Firebase Console
-2. **Place in `android/app/`** (or `ai_sdk_module/android/app/` if using module)
-3. **Add to project-level build.gradle**:
-
-```gradle
-// android/build.gradle
-buildscript {
-    dependencies {
-        classpath 'com.google.gms:google-services:4.4.0'
-    }
-}
-```
-
-4. **Add to app-level build.gradle**:
-
-```gradle
-// android/app/build.gradle
-plugins {
-    id 'com.android.application'
-    id 'kotlin-android'
-    id 'com.google.gms.google-services'  // Add this
-}
-
-dependencies {
-    implementation platform('com.google.firebase:firebase-bom:32.7.0')
-    implementation 'com.google.firebase:firebase-core'
-    implementation 'com.google.firebase:firebase-remoteconfig'
-}
-```
-
-### Step 6: Configure Firebase Remote Config
+### Step 2: Configure Remote Config Parameter
 
 In Firebase Console:
-
 1. Go to **Remote Config**
-2. Add parameter:
-   - Key: `hf_model_url`
-   - Type: String
-   - Value: `https://huggingface.co/facebook/demo-model`
-3. Publish changes
+2. Add a parameter:
+   - **Parameter key:** `hf_model_url`
+   - **Value:** HuggingFace model URL (e.g., `https://huggingface.co/facebook/opt-1.3b`)
+3. Publish the changes
 
-### Step 7: Handle Result Callbacks
+### Step 3: Update SDK Firebase Options
 
-To get results back to Android from Flutter:
-
-```dart
-// In Flutter module (lib/main.dart)
-import 'package:flutter/services.dart';
-
-class AndroidChannel {
-  static const platform = MethodChannel('com.yourcompany.ai_sdk/result');
-
-  static void sendResult(String result) {
-    platform.invokeMethod('onResult', {'result': result});
-  }
-}
-```
-
-```kotlin
-// In Android Activity
-flutterEngine?.dartExecutor?.stringRegistry?.getController("com.yourcompany.ai_sdk/result")
-    ?.setMessageHandler { message ->
-        val result = message.arguments?.getString("result")
-        // Handle result
-    }
-```
-
----
-
-## Option 2: Platform Channels (Native Implementation)
-
-If you want to call SDK functionality directly from native Android without Flutter UI:
-
-### Step 1: Create Platform Channel Interface
-
-```kotlin
-// AiSdkBridge.kt
-object AiSdkBridge {
-    private const val CHANNEL = "com.yourcompany.ai_sdk/methods"
-
-    fun downloadModel(onProgress: (progress: Float, status: String) -> Unit) {
-        // This would call into Flutter or implement native logic
-        // For now, this is a placeholder
-    }
-
-    fun runTask(taskType: String, input: Map<String, Any>, callback: (result: String) -> Unit) {
-        // Call Flutter method channel
-    }
-}
-```
-
-### Step 2: Register Platform Channels in Flutter
+In the SDK's code, update `SdkFirebaseOptions` with your Firebase credentials:
 
 ```dart
-// lib/main.dart
-import 'package:flutter/services.dart';
-
-class AiSdkPlugin {
-  static const MethodChannel _channel = MethodChannel('com.yourcompany.ai_sdk/methods');
-
-  static void register() {
-    _channel.setMethodCallHandler((call, result) {
-      switch (call.method) {
-        case 'downloadModel':
-          // Handle download
-          break;
-        case 'runTask':
-          // Handle task
-          break;
-        default:
-          result.notImplemented();
-      }
-    });
-  }
+class SdkFirebaseOptions {
+  static String androidApiKey = 'AIza...';  // From google-services.json
+  static String androidAppId = '1:...';     // From google-services.json
+  static String androidProjectId = '...';   // Your project ID
+  static String messagingSenderId = '...';  // From google-services.json
+  // iOS and web options as needed
 }
 ```
 
+### Step 4: Add Firebase Config Files
+
+**For Android (SDK's Firebase):**
+- Place `google-services.json` in the appropriate location for the SDK's Firebase
+
+**For the host app (if it has Firebase):**
+- Place `google-services.json` in `app/` directory of the host app
+
 ---
 
-## Firebase Remote Config on Android
+## Host App Firebase (Optional)
 
-When you need to fetch the HuggingFace URL from Firebase:
+If your Android app has its own Firebase:
+
+1. Add your app to your Firebase project
+2. Download `google-services.json`
+3. Place it in `app/` directory of your Android project
+4. Configure your app's Firebase features as needed
+
+The SDK's Firebase is separate and doesn't conflict with your app's Firebase.
+
+---
+
+## SDK Initialization
+
+### Kotlin/Java Initialization
 
 ```kotlin
-// FirebaseRemoteConfigHelper.kt
-import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+// Initialize Firebase for the SDK
+// This is done by the SDK's Flutter code automatically when
+// the SDK is initialized. If you're using platform channels,
+// the Flutter side handles this.
 
-object FirebaseRemoteConfigHelper {
-    private val remoteConfig: FirebaseRemoteConfig by lazy {
-        FirebaseRemoteConfig.getInstance()
-    }
+// The SDK initializes its Firebase like this:
+// 1. Check if host app has Firebase
+// 2. If yes, create SDK's Firebase app with different name
+// 3. If no, initialize SDK's own Firebase
+```
 
-    fun getHuggingFaceUrl(): String {
-        val url = remoteConfig.getString("hf_model_url")
-        return if (url.isNotEmpty()) url else "https://huggingface.co/models"
-    }
+### SDK Initialization Flow
 
-    fun fetchConfig() {
-        remoteConfig.fetchAndActivate()
-            .addOnSuccessListener { 
-                // Config fetched successfully
-            }
-            .addOnFailureListener { e ->
-                // Handle error
-            }
-    }
+```dart
+// The SDK's initialization (handled internally):
+Future<void> initializeSdk() async {
+  // Initialize SDK's Firebase
+  await SdkFirebaseInitializer.initialize();
+
+  // Initialize Remote Config
+  final remoteConfig = SdkRemoteConfigService();
+  await remoteConfig.initialize();
+
+  // Initialize the main engine
+  final engine = AdaptiveAgentEngine();
+  await engine.initialize();
+
+  // Fetch model URL from Firebase
+  final modelUrl = await remoteConfig.getHuggingFaceModelUrl();
+  // Use modelUrl to download the model
 }
 ```
 
 ---
 
-## Summary
+## Model Download
 
-| Component | Android Implementation |
-|-----------|----------------------|
-| AI SDK | Flutter module or platform channels |
-| Firebase | google-services.json + Firebase BoM |
-| Remote Config | FirebaseRemoteConfig.getInstance() |
-| Model URL | Parameter: `hf_model_url` |
-| Progress | Platform channels or Flutter UI |
+The SDK downloads models from HuggingFace. The model URL comes from Firebase Remote Config (SDK's Firebase).
+
+### Download Flow
+
+1. SDK fetches `hf_model_url` from Firebase Remote Config
+2. SDK extracts repo ID from URL (e.g., `facebook/opt-1.3b`)
+3. SDK downloads model from HuggingFace
+4. SDK verifies model integrity
+5. SDK loads model into memory
+6. SDK is ready to run tasks
+
+### Download with Progress
+
+```dart
+// The SDK provides progress callbacks:
+await engine.downloadModel(
+  modelId: 'model-id',
+  onProgress: (progress) {
+    // Called during downloading, verifying, loading, initializing
+    print('${progress.operation} ${progress.percent}%');
+  },
+  onLoadProgress: (progress) {
+    // Called during loading phase
+    print('Loading: ${progress.percent}%');
+  },
+);
+```
+
+---
+
+## Task Execution
+
+Once a model is downloaded and loaded, you can execute tasks:
+
+```dart
+// Create a task request
+final request = TaskRequest(
+  taskId: 'task_1',
+  description: 'Classify this text',
+  input: {'text': 'Hello world'},
+  taskType: TaskType.classification,
+  context: {
+    'screen': 'home',
+    'timeOfDay': 'morning',
+  },
+);
+
+// Execute the task
+final result = await engine.executeTask(request);
+
+// Handle result
+if (result.success) {
+  print('Result: ${result.output}');
+} else {
+  print('Error: ${result.errorMessage}');
+}
+```
+
+---
+
+## Security Features
+
+The SDK includes comprehensive security features:
+
+### Integrity Verification
+- Verifies SDK code integrity at runtime
+- Detects tampering attempts
+- Checks for debuggers and emulation
+
+### Data Protection
+- Per-customer encryption keys (HKDF-derived)
+- AES-256-GCM encryption for customer data
+- Secure storage for sensitive data
+
+### Permission Guard
+- Permissions required for sensitive operations
+- Payment/delete/modify operations require explicit user consent
+- Remote config updates require user confirmation
+
+### Tamper Detection
+- Detects rooted/jailbroken devices
+- Detects emulators
+- Detects debugging tools
+- Detects reverse engineering attempts
+
+### Emergency Response
+- Automatic lockout on tamper detection
+- Secure logout and data deletion
+- Remote wipe capability
 
 ---
 
 ## Troubleshooting
 
-**Build fails with "Could not resolve" errors:**
-- Check internet connection
-- Run `flutter clean` and rebuild
-- Verify google-services.json is in correct location
+### Firebase Not Configured
 
-**Firebase not working:**
-- Ensure google-services.json is in `android/app/`
-- Verify plugin applied in build.gradle
-- Check Firebase project is properly set up
+If the SDK's Firebase is not configured:
+- The SDK will use default values
+- Model URL will be the default HuggingFace URL
+- Analytics won't work
 
-**Flutter module not found:**
-- Check `settings.gradle` includes the module
-- Verify `projectDir` path is correct
+**Fix:** Configure the SDK's Firebase project and update `SdkFirebaseOptions`.
+
+### Model Download Fails
+
+- Check network connectivity
+- Verify HuggingFace model URL is valid
+- Check device storage availability
+- Check if model ID is correct
+
+### SDK Firebase Conflicts with Host App Firebase
+
+If your host app has Firebase and the SDK also has Firebase, they operate independently:
+- Host app Firebase handles host app features
+- SDK Firebase handles SDK Remote Config
+- They use different app names to avoid conflicts
+
+---
+
+## Summary
+
+- **SDK has its own Firebase** for Remote Config (SDK's Firebase project)
+- **Host app may have its own Firebase** for its features (host app's Firebase project)
+- **SDK's Firebase is required** for fetching the HuggingFace model URL
+- **Host app's Firebase is optional** - SDK works without it
+- **Both can coexist** - SDK uses a separate Firebase app name
+
+The SDK is self-contained with its own Firebase for Remote Config. The host app doesn't need to configure Firebase for the SDK to work.

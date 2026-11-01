@@ -1,467 +1,490 @@
-# Flutter Integration Guide
+# AI SDK - Flutter Integration Guide
 
-This guide shows how to integrate the AI SDK into a Flutter application.
+This guide explains how to integrate the AI SDK into a Flutter application. The SDK has its own Firebase configuration for Remote Config, separate from the host app's Firebase.
 
-## Overview
+## Table of Contents
 
-The AI SDK is a Flutter/Dart package that provides an adaptive AI agent engine. This guide covers:
-
-1. **Direct Package Integration** - Add the SDK as a dependency
-2. **Example App Integration** - Use the provided example app as a reference
-3. **Firebase Remote Config Setup** - Configure model URLs in Firebase
+1. [Overview](#overview)
+2. [SDK Firebase Architecture](#sdk-firebase-architecture)
+3. [Prerequisites](#prerequisites)
+4. [Add SDK Dependencies](#add-sdk-dependencies)
+5. [SDK Firebase Configuration](#sdk-firebase-configuration)
+6. [Host App Firebase (Optional)](#host-app-firebase-optional)
+7. [SDK Initialization](#sdk-initialization)
+8. [Model Download](#model-download)
+9. [Task Execution](#task-execution)
+10. [Security Features](#security-features)
+11. [Example App](#example-app)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
-## Option 1: Direct Package Integration
+## Overview
 
-### Step 1: Add AI SDK Dependency
+The AI SDK is a Flutter/Dart package that provides adaptive AI capabilities including:
+- Model management (download, verify, load, unload)
+- Task execution with multiple task types
+- Personalization engine (3-layer)
+- Recommendation engine
+- Automation engine (3 levels: Suggest/Prepare/Execute)
+- Comprehensive security layer
 
-In your `pubspec.yaml`:
+The SDK includes its own Firebase configuration for Remote Config. This allows the SDK to fetch the HuggingFace model URL regardless of whether the host app has Firebase or not.
 
+---
+
+## SDK Firebase Architecture
+
+The SDK has two potential Firebase configurations:
+
+### 1. SDK's Firebase (Required for Remote Config)
+
+The SDK manages its own Firebase app for Remote Config. This is configured in the SDK's own Firebase project.
+
+**Purpose:** Fetch the HuggingFace model URL from Firebase Remote Config.
+
+**Configuration:** `SdkFirebaseOptions` in the SDK's codebase.
+
+**When used:** Always - the SDK needs this for Remote Config.
+
+### 2. Host App's Firebase (Optional)
+
+The host Flutter app may have its own Firebase project for its own features (analytics, auth, crashlytics, etc.).
+
+**Purpose:** Host app features.
+
+**Configuration:** Host app's Firebase project (google-services.json / GoogleService-Info.plist in host app).
+
+**When used:** Only if the host app wants Firebase features.
+
+### Firebase Configuration Hierarchy
+
+1. If host app provides Firebase with Remote Config for model URL → SDK can use host app's Firebase (optional)
+2. If host app has Firebase but no Remote Config for model URL → SDK uses its own Firebase
+3. If host app has no Firebase → SDK uses its own Firebase
+
+This ensures the SDK always has access to Remote Config for fetching the HuggingFace model URL.
+
+---
+
+## Prerequisites
+
+- Flutter SDK (>= 3.16.0)
+- Dart SDK (>= 3.0.0)
+- Firebase project for the SDK (for Remote Config)
+- Android Studio or VS Code (for development)
+
+---
+
+## Add SDK Dependencies
+
+### Step 1: Add SDK to pubspec.yaml
+
+Add the SDK as a dependency in your Flutter project's `pubspec.yaml`:
+
+**For local development:**
 ```yaml
 dependencies:
-  flutter:
-    sdk: flutter
   ai_sdk:
-    path: ../path/to/ai_sdk/dart  # Or use git/path dependency
-  get: ^4.6.6
-  get_it: ^7.6.7
+    path: ../path/to/ai_sdk
 ```
 
-Or use Git dependency:
+**For published version:**
+```yaml
+dependencies:
+  ai_sdk: ^1.0.0
+```
 
+**For Git repository:**
 ```yaml
 dependencies:
   ai_sdk:
     git:
-      url: https://github.com/EswarVarma91/ai_sdk.git
+      url: https://github.com/your-org/ai_sdk.git
       ref: main
-      path: dart
 ```
 
-### Step 2: Run Flutter Pub Get
+### Step 2: Get Dependencies
 
 ```bash
 flutter pub get
 ```
 
-### Step 3: Initialize the SDK
-
-```dart
-// lib/main.dart
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:ai_sdk/ai_sdk.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase first (if using Firebase)
-  // await Firebase.initializeApp();
-  
-  // Initialize AI SDK
-  final aiSdk = AdaptiveAgentEngine();
-  
-  runApp(MyApp(aiSdk: aiSdk));
-}
-
-class MyApp extends StatelessWidget {
-  final AdaptiveAgentEngine aiSdk;
-
-  const MyApp({super.key, required this.aiSdk});
-
-  @override
-  Widget build(BuildContext context) {
-    return GetMaterialApp(
-      title: 'AI SDK Demo',
-      home: HomeScreen(aiSdk: aiSdk),
-    );
-  }
-}
-```
-
-### Step 4: Download and Use a Model
-
-```dart
-// lib/screens/home_screen.dart
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:ai_sdk/ai_sdk.dart';
-import 'package:firebase_remote_config/firebase_remote_config.dart';
-
-class HomeScreen extends StatefulWidget {
-  final AdaptiveAgentEngine aiSdk;
-  const HomeScreen({super.key, required this.aiSdk});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  bool _isDownloading = false;
-  String? _status;
-  ModelProgress? _progress;
-
-  // Get HuggingFace URL from Firebase Remote Config
-  Future<String> _getHuggingFaceUrl() async {
-    final remoteConfig = FirebaseRemoteConfig.instance;
-    await remoteConfig.fetchAndActivate();
-    
-    final url = remoteConfig.getString('hf_model_url');
-    return url.isNotEmpty ? url : 'https://huggingface.co/models';
-  }
-
-  // Extract repo ID from HuggingFace URL
-  String _extractRepoId(String url) {
-    try {
-      final uri = Uri.parse(url);
-      final segments = uri.pathSegments;
-      if (segments.length >= 2) {
-        return '${segments[segments.length - 2]}/${segments[segments.length - 1]}';
-      }
-    } catch (e) {
-      // Invalid URL
-    }
-    return '';
-  }
-
-  Future<void> _downloadModel() async {
-    if (_isDownloading) return;
-
-    setState(() {
-      _isDownloading = true;
-      _status = 'Checking Firebase...';
-    });
-
-    // Only check Firebase if no model is installed
-    final installedModels = widget.aiSdk.getInstalledModels();
-    if (installedModels.isNotEmpty) {
-      setState(() {
-        _isDownloading = false;
-        _status = 'Model already installed: ${installedModels.first.displayName}';
-      });
-      return;
-    }
-
-    // Fetch URL from Firebase
-    final huggingFaceUrl = await _getHuggingFaceUrl();
-    final repoId = _extractRepoId(huggingFaceUrl);
-
-    if (repoId.isEmpty) {
-      setState(() {
-        _isDownloading = false;
-        _status = 'Invalid HuggingFace URL: $huggingFaceUrl';
-      });
-      return;
-    }
-
-    setState(() {
-      _status = 'Downloading model...';
-    });
-
-    try {
-      final result = await widget.aiSdk.downloadModel(
-        repoId,
-        onProgress: (progress) {
-          setState(() {
-            _progress = progress;
-            _status = '${progress.operation.name.toUpperCase()}: ${progress.percent.toStringAsFixed(1)}%';
-          });
-        },
-        onLoadProgress: (progress) {
-          setState(() {
-            _progress = progress;
-            _status = 'Loading: ${progress.percent.toStringAsFixed(1)}%';
-          });
-        },
-      );
-
-      setState(() {
-        _isDownloading = false;
-        _status = result.success
-            ? 'Model ready: $repoId'
-            : 'Download failed: ${result.errorMessage}';
-      });
-    } catch (e) {
-      setState(() {
-        _isDownloading = false;
-        _status = 'Error: $e';
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('AI SDK')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_isDownloading)
-              const CircularProgressIndicator()
-            else
-              ElevatedButton.icon(
-                onPressed: _downloadModel,
-                icon: const Icon(Icons.cloud_download),
-                label: const Text('Download Model'),
-              ),
-            if (_status != null) ...[
-              const SizedBox(height: 16),
-              Text(_status!),
-            ],
-            if (_progress != null) ...[
-              const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: _progress!.percent / 100,
-              ),
-              Text(_progress!.status ?? ''),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-```
-
----
-
-## Option 2: Use the Example App
-
-The `dart/example/` directory contains a complete Flutter app demonstrating SDK integration.
-
-### Quick Start
-
-1. Copy the example app structure
-2. Add Firebase config files
-3. Run the app
+### Step 3: Run Pod Install (iOS)
 
 ```bash
-cd dart/example
-flutter pub get
-flutter run
+cd ios
+pod install
+cd ..
 ```
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `lib/main.dart` | App entry point, Firebase init, GetX setup |
-| `lib/ui/controllers/home_controller.dart` | GetX controller for home screen |
-| `lib/ui/screens/home_screen.dart` | Main home screen UI |
-| `lib/core/firebase_remote_config.dart` | Firebase Remote Config service |
-| `lib/core/bindings/app_bindings.dart` | Dependency injection setup |
 
 ---
 
-## Firebase Remote Config Setup
+## SDK Firebase Configuration
 
-### Step 1: Create Firebase Project
+### Step 1: Create Firebase Project for SDK
 
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project or select existing
-3. Add Android/iOS app to the project
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. Create a new project (e.g., "AI SDK Demo")
+3. Add Android and iOS apps to the project
+   - Android: Use your app's package name or a custom one
+   - iOS: Use your app's bundle ID or a custom one
+4. Download `google-services.json` (Android) and `GoogleService-Info.plist` (iOS)
+5. Configure Remote Config:
+   - Go to **Remote Config**
+   - Add parameter: `hf_model_url`
+   - Value: HuggingFace model URL (e.g., `https://huggingface.co/facebook/opt-1.3b`)
+   - Publish changes
 
-### Step 2: Add Config Files
+### Step 2: Update SDK Firebase Options
 
-**Android:**
-- Download `google-services.json`
-- Place in `android/app/`
-
-**iOS:**
-- Download `GoogleService-Info.plist`
-- Place in `ios/Runner/`
-
-### Step 3: Add Firebase Dependencies
-
-In your `pubspec.yaml`:
-
-```yaml
-dependencies:
-  firebase_core: ^2.24.0
-  firebase_remote_config: ^4.3.0
-```
-
-### Step 4: Initialize Firebase
+In the SDK's code, update `SdkFirebaseOptions` with your Firebase credentials:
 
 ```dart
-// lib/main.dart
+class SdkFirebaseOptions {
+  // Android
+  static String androidApiKey = 'AIza...';
+  static String androidAppId = '1:...:android:...';
+  static String androidProjectId = '...';
+
+  // iOS
+  static String iosApiKey = 'AIza...';
+  static String iosAppId = '1:...:ios:...';
+
+  // Common
+  static String messagingSenderId = '...';
+  static String measurementId = 'G-...';
+}
+```
+
+### Step 3: Add Firebase Config Files
+
+**For Android (SDK's Firebase):**
+- Place `google-services.json` in the SDK's Android configuration
+
+**For iOS (SDK's Firebase):**
+- Place `GoogleService-Info.plist` in the SDK's iOS configuration
+
+**For Host App (if it has Firebase):**
+- Android: Place `google-services.json` in `android/app/`
+- iOS: Place `GoogleService-Info.plist` in `ios/Runner/`
+
+---
+
+## Host App Firebase (Optional)
+
+If your Flutter app has its own Firebase:
+
+### Step 1: Add Firebase to Flutter App
+
+```bash
+flutter pub add firebase_core firebase_analytics
+flutterfire configure
+```
+
+### Step 2: Initialize Firebase in main.dart
+
+```dart
 import 'package:firebase_core/firebase_core.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   runApp(MyApp());
 }
 ```
 
-### Step 5: Configure Remote Config Parameter
-
-In Firebase Console:
-
-1. Go to **Remote Config**
-2. Add parameter:
-   - Key: `hf_model_url`
-   - Type: String
-   - Value: Your HuggingFace model URL (e.g., `https://huggingface.co/facebook/demo-model`)
-3. Publish changes
-
-### Step 6: Fetch Model URL in App
-
-```dart
-import 'package:firebase_remote_config/firebase_remote_config.dart';
-
-Future<String> getHuggingFaceUrl() async {
-  final remoteConfig = FirebaseRemoteConfig.instance;
-  
-  // Set defaults
-  await remoteConfig.setDefaults({
-    'hf_model_url': 'https://huggingface.co/models'
-  });
-  
-  // Fetch and activate
-  await remoteConfig.fetchAndActivate();
-  
-  // Get URL
-  return remoteConfig.getString('hf_model_url');
-}
-```
+The SDK's Firebase is separate and doesn't conflict with your app's Firebase.
 
 ---
 
-## User Flow (No Model Selection)
+## SDK Initialization
 
-```
-User opens app
-    │
-    ▼
-User sees home screen with "Download Model" button (cloud icon)
-    │
-    ▼
-User taps "Download Model"
-    │
-    ├─── If model already installed:
-    │       └──> Show "Model already installed" - skip everything
-    │
-    └─── If no model installed:
-            │
-            ▼
-            Fetch HuggingFace URL from Firebase Remote Config
-            (Parameter: hf_model_url)
-            │
-            ▼
-            Extract repo ID from URL
-            (e.g., https://huggingface.co/facebook/demo-model → facebook/demo-model)
-            │
-            ▼
-            Download model from HuggingFace
-            │
-            ├──> Show download progress
-            ├──> Show verification progress
-            ├──> Show loading progress
-            │
-            ▼
-            Model ready - user can now run tasks
-```
-
-**The user never sees or selects a model - it's a background task.**
-
----
-
-## State Management
-
-The example app uses **GetX** for state management:
+### Basic Initialization
 
 ```dart
-// Controller
-class HomeController extends GetxController {
-  final AdaptiveAgentEngine _engine;
-  
-  // Observable state
-  final _status = ''.obs;
-  final _isDownloading = false.obs;
-  
-  // Getters
-  String get status => _status.value;
-  bool get isDownloading => _isDownloading.value;
-  
-  void downloadModel() async {
-    // Implementation
-  }
-}
-
-// View
-class HomeScreen extends GetView<HomeController> {
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      // Reactive UI
-    });
-  }
-}
-```
-
----
-
-## Dependency Injection with get_it
-
-```dart
-// lib/core/bindings/app_bindings.dart
-import 'package:get_it/get_it.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 
-final getIt = GetIt.instance;
+// Initialize the SDK
+final engine = AdaptiveAgentEngine();
+await engine.initialize();
 
-void setupDependencies() {
-  // SDK
-  getIt.registerSingleton<AdaptiveAgentEngine>(AdaptiveAgentEngine());
-  
-  // Repositories
-  getIt.registerLazySingleton<AiRepository>(
-    () => AiRepository(getIt<AdaptiveAgentEngine>()),
-  );
-  
-  // Firebase config
-  getIt.registerLazySingleton<ModelConfigService>(
-    () => ModelConfigService(),
-  );
+// The SDK automatically:
+// 1. Initializes its own Firebase (if not already initialized)
+// 2. Sets up Remote Config for fetching model URL
+// 3. Initializes all engines (ModelManager, CompatibilityEngine, etc.)
+// 4. Fetches the HuggingFace model URL from Firebase
+```
+
+### With Custom Firebase App Name
+
+```dart
+// If you want the SDK to use a specific Firebase app name:
+await SdkFirebaseInitializer.initialize(appName: 'my_sdk_firebase');
+```
+
+### Checking SDK Firebase Status
+
+```dart
+// Check if SDK's Firebase is configured
+if (SdkFirebaseOptions.isConfigured) {
+  print('SDK Firebase is configured');
+} else {
+  print('SDK Firebase NOT configured - using defaults');
+}
+
+// Check if SDK's Firebase app is initialized
+if (SdkFirebaseInitializer.isSdkAppInitialized) {
+  print('SDK Firebase app is initialized');
 }
 ```
 
 ---
 
-## Summary
+## Model Download
 
-| Component | Flutter Implementation |
-|-----------|----------------------|
-| SDK | `ai_sdk` package (path or git dependency) |
-| State Management | GetX (`get` package) |
-| DI | get_it package |
-| Firebase | firebase_core, firebase_remote_config |
-| Remote Config | `hf_model_url` parameter |
-| UI | Responsive (mobile + tablet), reusable widgets |
+The SDK downloads models from HuggingFace. The model URL comes from Firebase Remote Config (SDK's Firebase).
+
+### Automatic Download
+
+```dart
+// The SDK can automatically download the model from Firebase config
+final repoId = await engine.getModelRepoIdFromFirebase();
+if (repoId != null) {
+  await engine.downloadModel(repoId, onProgress: (progress) {
+    print('${progress.operation}: ${progress.percent}%');
+  });
+}
+```
+
+### Manual Download
+
+```dart
+// Or specify the model ID directly
+await engine.downloadModel(
+  modelId: 'facebook/opt-1.3b',
+  onProgress: (progress) {
+    print('${progress.operation}: ${progress.percent}%');
+  },
+  onLoadProgress: (progress) {
+    print('Loading: ${progress.percent}%');
+  },
+);
+```
+
+### Download Flow
+
+1. SDK fetches `hf_model_url` from Firebase Remote Config
+2. SDK extracts repo ID from URL (e.g., `facebook/opt-1.3b`)
+3. SDK downloads model from HuggingFace
+4. SDK verifies model integrity
+5. SDK loads model into memory
+6. SDK is ready to run tasks
+
+### Progress Callbacks
+
+The SDK provides two types of progress callbacks:
+
+- **`onProgress`**: Called during downloading, verifying, loading, initializing phases
+  - Includes `operation`, `percent`, `progress`, `total`, `status`
+  
+- **`onLoadProgress`**: Called during the loading phase only
+  - Includes `percent`, `status`
+
+---
+
+## Task Execution
+
+Once a model is downloaded and loaded, you can execute tasks:
+
+### Classification Task
+
+```dart
+final result = await engine.executeTask(
+  TaskRequest(
+    taskId: 'task_1',
+    description: 'Classify this text',
+    input: {'text': 'I love this product!'},
+    taskType: TaskType.classification,
+    context: {
+      'screen': 'home',
+      'timeOfDay': 'morning',
+    },
+    options: TaskOptions(
+      maxTokens: 100,
+      temperature: 0.7,
+    ),
+  ),
+);
+
+if (result.success) {
+  print('Classification: ${result.output}');
+} else {
+  print('Error: ${result.errorMessage}');
+}
+```
+
+### Task Types
+
+The SDK supports various task types:
+- `TaskType.classification` - Text classification
+- `TaskType.extraction` - Information extraction
+- `TaskType.generation` - Text generation
+- `TaskType.summarization` - Text summarization
+- `TaskType.completion` - Text completion
+
+---
+
+## Security Features
+
+The SDK includes comprehensive security features:
+
+### Integrity Verification
+- Verifies SDK code integrity at runtime
+- Detects tampering attempts
+- Checks for debuggers and emulation
+
+### Data Protection
+- Per-customer encryption keys (HKDF-derived)
+- AES-256-GCM encryption for customer data
+- Secure storage for sensitive data
+
+### Permission Guard
+- Permissions required for sensitive operations
+- Payment/delete/modify operations require explicit user consent
+- Remote config updates require user confirmation
+
+### Tamper Detection
+- Detects rooted/jailbroken devices
+- Detects emulators
+- Detects debugging tools
+- Detects reverse engineering attempts
+
+### Emergency Response
+- Automatic lockout on tamper detection
+- Secure logout and data deletion
+- Remote wipe capability
+
+### Using Security Features
+
+```dart
+// Check SDK integrity
+final tamperDetector = TamperDetector();
+final isSecure = tamperDetector.isSdkIntegrityVerified;
+
+// Check permissions
+final guard = PermissionGuard();
+final hasPermission = guard.hasPermission(
+  'can_modify_profile',
+  PermissionLevel.user,
+);
+
+// Encrypt customer data
+final protector = DataProtector();
+final encrypted = protector.encryptCustomerData(
+  customerId: 'cust_123',
+  data: {'email': 'user@example.com'},
+);
+
+// Delete data securely
+final deleteManager = SecureDeleteManager();
+await deleteManager.secureDelete(
+  customerId: 'cust_123',
+  dataKey: 'user_data',
+);
+```
+
+---
+
+## Example App
+
+The SDK includes a complete example app in `example/` directory.
+
+### Running the Example App
+
+```bash
+cd example
+flutter pub get
+flutter run
+```
+
+### Example App Features
+
+- GetX state management
+- get_it dependency injection
+- Responsive UI (mobile single column, tablet 2-column)
+- Reusable widgets (AdaptiveButton, StatusCard, ActionGrid, ModelProgressIndicator)
+- Security status display
+- Model download with progress
+- Task execution
+- Settings screen
+
+### Example App Firebase Setup
+
+The example app uses the SDK's Firebase for Remote Config. It doesn't need its own Firebase for the model download feature.
+
+If you want to add Firebase features to the example app (analytics, etc.), you can add the host app's Firebase config separately.
+
+### Example App User Flow
+
+1. User opens app → sees "Download Model" button (cloud icon)
+2. User taps "Download Model"
+3. App uses SDK's Firebase Remote Config to get model URL
+4. SDK extracts repo ID from URL
+5. SDK downloads model from HuggingFace
+6. Model verified → loaded → user can run tasks
+
+The user never selects a model - it's a background task.
 
 ---
 
 ## Troubleshooting
 
-**Package not found:**
-- Run `flutter pub get`
-- Check pubspec.yaml path is correct
-- Try `flutter clean` and rebuild
+### Firebase Not Configured
 
-**Firebase not initializing:**
-- Add config files (google-services.json, GoogleService-Info.plist)
-- Call `Firebase.initializeApp()` before `runApp()`
-- Ensure Firebase project is properly set up
+If the SDK's Firebase is not configured:
+- The SDK will use default values
+- Model URL will be the default HuggingFace URL
+- Analytics won't work
 
-**Model download fails:**
-- Check model repo ID is accessible on HuggingFace
-- Verify internet connection
-- Check device has enough storage
+**Fix:** Configure the SDK's Firebase project and update `SdkFirebaseOptions`.
 
-**Firebase Remote Config returns empty:**
-- Publish changes in Firebase Console
-- Check parameter key matches exactly (`hf_model_url`)
-- Check app is connected to Firebase correctly
+### Model Download Fails
+
+- Check network connectivity
+- Verify HuggingFace model URL is valid
+- Check device storage availability
+- Check if model ID is correct
+
+### SDK Firebase Conflicts with Host App Firebase
+
+If your host app has Firebase and the SDK also has Firebase, they operate independently:
+- Host app Firebase handles host app features
+- SDK Firebase handles SDK Remote Config
+- They use different app names to avoid conflicts
+
+### Platform-Specific Issues
+
+#### Android
+- Ensure minSdkVersion is 21 or higher
+- Check ProGuard rules if using R8/ProGuard
+- Ensure google-services.json is in the right place
+
+#### iOS
+- Ensure deployment target is iOS 12.0 or higher
+- Run pod install after adding dependencies
+- Check that GoogleService-Info.plist is in the right place
+
+---
+
+## Summary
+
+- **SDK has its own Firebase** for Remote Config (SDK's Firebase project)
+- **Host app may have its own Firebase** for its features (host app's Firebase project)
+- **SDK's Firebase is required** for fetching the HuggingFace model URL
+- **Host app's Firebase is optional** - SDK works without it
+- **Both can coexist** - SDK uses a separate Firebase app name
+
+The SDK is self-contained with its own Firebase for Remote Config. The host app doesn't need to configure Firebase for the SDK to work.
+
+If you have any questions or need help with integration, please refer to the example app or contact the SDK maintainers.

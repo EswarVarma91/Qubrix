@@ -1,374 +1,363 @@
-# iOS Native Integration Guide
+# AI SDK - Native iOS Integration Guide
 
-This guide shows how to integrate the AI SDK into a native iOS (Swift/Objective-C) application.
+This guide explains how to integrate the AI SDK into a native iOS application. The SDK has its own Firebase configuration for Remote Config, separate from the host app's Firebase.
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [SDK Firebase Architecture](#sdk-firebase-architecture)
+3. [Prerequisites](#prerequisites)
+4. [Add SDK Dependencies](#add-sdk-dependencies)
+5. [SDK Firebase Configuration](#sdk-firebase-configuration)
+6. [Host App Firebase (Optional)](#host-app-firebase-optional)
+7. [SDK Initialization](#sdk-initialization)
+8. [Model Download](#model-download)
+9. [Task Execution](#task-execution)
+10. [Security Features](#security-features)
+11. [iOS Specific Notes](#ios-specific-notes)
+12. [Troubleshooting](#troubleshooting)
+
+---
 
 ## Overview
 
-The AI SDK is a Flutter/Dart package. For native iOS integration, you have two options:
+The AI SDK is a Flutter/Dart package that provides adaptive AI capabilities. It can be integrated into native iOS apps via platform channels or by building the Flutter module as an iOS framework.
 
-1. **Flutter Module** - Embed the Flutter example app as a module in your iOS app
-2. **Platform Channels** - Create a Flutter plugin that exposes SDK functionality via platform channels
-
-This guide covers Option 1 (Flutter Module) as it's the simplest approach.
+The SDK includes its own Firebase configuration for Remote Config. This allows the SDK to fetch the HuggingFace model URL regardless of whether the host app has Firebase or not.
 
 ---
 
-## Option 1: Flutter Module Integration
+## SDK Firebase Architecture
 
-### Step 1: Create Flutter Module
+The SDK has two potential Firebase configurations:
 
-```bash
-# In your project directory
-flutter create -t module --org com.yourcompany ai_sdk_module
-```
+### 1. SDK's Firebase (Required for Remote Config)
 
-This creates `ai_sdk_module/` with:
-- `lib/` - Dart code
-- `android/` - Android wrapper
-- `ios/` - iOS wrapper (the `.podspec` file)
+The SDK manages its own Firebase app for Remote Config. This is configured in the SDK's own Firebase project.
 
-### Step 2: Add AI SDK to Flutter Module
+**Purpose:** Fetch the HuggingFace model URL from Firebase Remote Config.
 
-Edit `ai_sdk_module/pubspec.yaml`:
+**Configuration:** `SdkFirebaseOptions` in the SDK's codebase.
+
+**When used:** Always - the SDK needs this for Remote Config.
+
+### 2. Host App's Firebase (Optional)
+
+The host iOS app may have its own Firebase project for its own features (analytics, auth, crashlytics, etc.).
+
+**Purpose:** Host app features.
+
+**Configuration:** Host app's Firebase project (GoogleService-Info.plist in Runner/).
+
+**When used:** Only if the host app wants Firebase features.
+
+### Firebase Configuration Hierarchy
+
+1. If host app provides Firebase with Remote Config for model URL → SDK can use host app's Firebase (optional)
+2. If host app has Firebase but no Remote Config for model URL → SDK uses its own Firebase
+3. If host app has no Firebase → SDK uses its own Firebase
+
+This ensures the SDK always has access to Remote Config for fetching the HuggingFace model URL.
+
+---
+
+## Prerequisites
+
+- Xcode 14+
+- iOS 12.0+ deployment target
+- CocoaPods (for dependency management)
+- Firebase project for the SDK (for Remote Config)
+
+---
+
+## Add SDK Dependencies
+
+### Option 1: Use SDK as a Flutter Module
+
+If your iOS app uses Flutter, add the SDK as a dependency in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter:
-    sdk: flutter
   ai_sdk:
-    path: ../path/to/ai_sdk/dart
-  get: ^4.6.6
-  get_it: ^7.6.7
+    path: ../path/to/ai_sdk
 ```
 
-### Step 3: Add Flutter Module to iOS Project
+### Option 2: Use SDK via Platform Channel
 
-**Using CocoaPods:**
+If your iOS app is pure native, you can communicate with the SDK via platform channels. The SDK would run as a Flutter module embedded in your app.
 
-In your iOS app's `Podfile`:
+### Option 3: Build as iOS Framework
 
-```ruby
-# ios/Podfile
-platform :ios, '12.0'
+Build the Flutter module as an iOS framework and include it in your Xcode project.
 
-target 'YourApp' do
-  use_frameworks!
-  
-  # Add Flutter module
-  flutter_module_path = '../ai_sdk_module'
-  pod 'ai_sdk_module', :path => flutter_module_path
-end
-```
+---
 
-Then run:
+## SDK Firebase Configuration
 
-```bash
-cd ios
-pod install
-```
+### Step 1: Create Firebase Project for SDK
 
-**Using Gradle-style import (alternative):**
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. Create a new project (e.g., "AI SDK Demo")
+3. Add an iOS app to the project
+   - Bundle ID: Use your app's bundle ID or a custom one for the SDK
+4. Download `GoogleService-Info.plist`
+5. Add an Android app (if needed)
+6. Download `google-services.json`
 
-In Xcode, drag `ai_sdk_module/ios` into your project, or use Swift Package Manager if applicable.
-
-### Step 4: Initialize Flutter Engine
-
-In your iOS AppDelegate:
-
-```swift
-// AppDelegate.swift
-import UIKit
-import Flutter
-import ai_sdk_module
-
-@UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
-    var window: UIWindow?
-    var flutterEngine: FlutterEngine?
-
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
-    ) -> Bool {
-        
-        // Create Flutter engine once
-        flutterEngine = FlutterEngine(name: "AI SDK Engine", project: nil)
-        flutterEngine?.run()
-        
-        // Optionally push initial route
-        let controller = FlutterViewController(
-            engine: flutterEngine!,
-            nibName: nil,
-            bundle: nil
-        )
-        controller.router = FlutterNavigationRouter(rootRoute: "/home")
-        
-        window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = controller
-        window?.makeKeyAndVisible()
-        
-        return true
-    }
-}
-```
-
-**Alternative: Using FlutterViewController in a specific view:**
-
-```swift
-// In your view controller
-import Flutter
-
-class HomeViewController: UIViewController {
-    var flutterEngine: FlutterEngine?
-    var flutterViewController: FlutterViewController?
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        
-        if flutterEngine == nil {
-            flutterEngine = FlutterEngine(name: "AI_SDK", project: nil)
-            flutterEngine?.run()
-        }
-        
-        flutterViewController = FlutterViewController(
-            engine: flutterEngine!,
-            nibName: nil,
-            bundle: nil
-        )
-        
-        // Add as child view controller
-        addChild(flutterViewController!)
-        view.addSubview(flutterViewController!.view)
-        flutterViewController!.view.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            flutterViewController!.view.topAnchor.constraint(equalTo: view.topAnchor),
-            flutterViewController!.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            flutterViewController!.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            flutterViewController!.view.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        ])
-        flutterViewController!.didMove(toParent: self)
-    }
-}
-```
-
-### Step 5: Add Firebase to iOS
-
-1. **Download GoogleService-Info.plist** from Firebase Console
-2. **Add to Xcode project:**
-   - Drag into `ios/Runner/` (or your app's main folder)
-   - Make sure "Copy items if needed" is checked
-   - Add to your app target
-
-3. **Add Firebase via CocoaPods:**
-
-```ruby
-# ios/Podfile
-target 'YourApp' do
-  use_frameworks!
-  
-  # Firebase
-  pod 'FirebaseCore'
-  pod 'FirebaseRemoteConfig'
-end
-```
-
-```bash
-cd ios
-pod install
-```
-
-4. **Initialize Firebase in AppDelegate:**
-
-```swift
-// AppDelegate.swift
-import Firebase
-
-@UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
-    var window: UIWindow?
-
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
-    ) -> Bool {
-        
-        // Initialize Firebase FIRST
-        FirebaseApp.configure()
-        
-        // Then initialize Flutter
-        flutterEngine = FlutterEngine(name: "AI_SDK", project: nil)
-        flutterEngine?.run()
-        
-        return true
-    }
-}
-```
-
-### Step 6: Configure Firebase Remote Config
+### Step 2: Configure Remote Config Parameter
 
 In Firebase Console:
-
 1. Go to **Remote Config**
-2. Add parameter:
-   - Key: `hf_model_url`
-   - Type: String
-   - Value: `https://huggingface.co/facebook/demo-model`
-3. Publish changes
+2. Add a parameter:
+   - **Parameter key:** `hf_model_url`
+   - **Value:** HuggingFace model URL (e.g., `https://huggingface.co/facebook/opt-1.3b`)
+3. Publish the changes
 
-### Step 7: Handle Result Callbacks
+### Step 3: Update SDK Firebase Options
 
-To get results back to iOS from Flutter:
+In the SDK's code, update `SdkFirebaseOptions` with your Firebase credentials:
 
 ```dart
-// In Flutter module (lib/main.dart)
-import 'package:flutter/services.dart';
-
-class iOSChannel {
-  static const platform = MethodChannel('com.yourcompany.ai_sdk/result');
-
-  static void sendResult(String result) {
-    platform.invokeMethod('onResult', {'result': result});
-  }
+class SdkFirebaseOptions {
+  static String iosApiKey = 'AIza...';      // From GoogleService-Info.plist
+  static String iosAppId = '1:...:ios:...'; // From GoogleService-Info.plist
+  static String iosProjectId = '...';       // Your project ID
+  static String messagingSenderId = '...';  // From GoogleService-Info.plist
+  // Android and web options as needed
 }
 ```
 
-```swift
-// In iOS AppDelegate or view controller
-import Flutter
+### Step 4: Add Firebase Config Files
 
-class FlutterResultHandler: NSObject, FlutterPlugin {
-    static func register(with registrar: FlutterPluginRegistrar) {
-        let channel = FlutterMethodChannel(
-            name: "com.yourcompany.ai_sdk/result",
-            binaryMessenger: registrar.messenger()
-        )
-        
-        let instance = FlutterResultHandler()
-        registrar.addMethodCallDelegate(instance, channel: channel)
-    }
-    
-    func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        switch call.method {
-        case "onResult":
-            if let args = call.arguments as? [String: Any],
-               let resultValue = args["result"] as? String {
-                // Handle result from Flutter
-                print("Received result: \(resultValue)")
-            }
-            result(nil)
-        default:
-            result(FlutterMethodNotImplemented)
-        }
-    }
+**For iOS (SDK's Firebase):**
+- Place `GoogleService-Info.plist` in the appropriate location for the SDK's Firebase
+
+**For the host app (if it has Firebase):**
+- Place `GoogleService-Info.plist` in `ios/Runner/` directory of the host app
+- Ensure `CFBundleIdentifier` in Info.plist matches your Firebase app's bundle ID
+
+---
+
+## Host App Firebase (Optional)
+
+If your iOS app has its own Firebase:
+
+1. Add your app to your Firebase project
+2. Download `GoogleService-Info.plist`
+3. Place it in `ios/Runner/` directory
+4. Configure your app's Firebase features as needed
+5. In Xcode, ensure the plist is included in the app target
+
+The SDK's Firebase is separate and doesn't conflict with your app's Firebase.
+
+---
+
+## SDK Initialization
+
+### Swift/Objective-C Initialization
+
+```swift
+// Initialize Firebase for the SDK
+// This is done by the SDK's Flutter code automatically when
+// the SDK is initialized. If you're using platform channels,
+// the Flutter side handles this.
+
+// The SDK initializes its Firebase like this:
+// 1. Check if host app has Firebase
+// 2. If yes, create SDK's Firebase app with different name
+// 3. If no, initialize SDK's own Firebase
+```
+
+### SDK Initialization Flow
+
+```dart
+// The SDK's initialization (handled internally):
+Future<void> initializeSdk() async {
+  // Initialize SDK's Firebase
+  await SdkFirebaseInitializer.initialize();
+
+  // Initialize Remote Config
+  final remoteConfig = SdkRemoteConfigService();
+  await remoteConfig.initialize();
+
+  // Initialize the main engine
+  final engine = AdaptiveAgentEngine();
+  await engine.initialize();
+
+  // Fetch model URL from Firebase
+  final modelUrl = await remoteConfig.getHuggingFaceModelUrl();
+  // Use modelUrl to download the model
 }
 ```
 
 ---
 
-## Option 2: Platform Channels (Native Implementation)
+## Model Download
 
-If you want to call SDK functionality directly from native iOS without Flutter UI:
+The SDK downloads models from HuggingFace. The model URL comes from Firebase Remote Config (SDK's Firebase).
 
-### Step 1: Create Platform Channel Interface
+### Download Flow
 
-```swift
-// AiSdkBridge.swift
-import Flutter
+1. SDK fetches `hf_model_url` from Firebase Remote Config
+2. SDK extracts repo ID from URL (e.g., `facebook/opt-1.3b`)
+3. SDK downloads model from HuggingFace
+4. SDK verifies model integrity
+5. SDK loads model into memory
+6. SDK is ready to run tasks
 
-class AiSdkBridge {
-    private let channel = FlutterMethodChannel(
-        name: "com.yourcompany.ai_sdk/methods",
-        binaryMessenger: FlutterNativePlugin.messenger()
-    )
-    
-    func downloadModel(onProgress: @escaping (Float, String) -> Void) {
-        // This would call into Flutter or implement native logic
-    }
-    
-    func runTask(taskType: String, input: [String: Any], callback: @escaping (String) -> Void) {
-        // Call Flutter method channel
-        channel.invokeMethod("runTask", arguments: [
-            "taskType": taskType,
-            "input": input
-        ], result: { result in
-            if let resultDict = result as? [String: Any],
-               let output = resultDict["output"] as? String {
-                callback(output)
-            }
-        })
-    }
+### Download with Progress
+
+```dart
+// The SDK provides progress callbacks:
+await engine.downloadModel(
+  modelId: 'model-id',
+  onProgress: (progress) {
+    // Called during downloading, verifying, loading, initializing
+    print('${progress.operation} ${progress.percent}%');
+  },
+  onLoadProgress: (progress) {
+    // Called during loading phase
+    print('Loading: ${progress.percent}%');
+  },
+);
+```
+
+---
+
+## Task Execution
+
+Once a model is downloaded and loaded, you can execute tasks:
+
+```dart
+// Create a task request
+final request = TaskRequest(
+  taskId: 'task_1',
+  description: 'Classify this text',
+  input: {'text': 'Hello world'},
+  taskType: TaskType.classification,
+  context: {
+    'screen': 'home',
+    'timeOfDay': 'morning',
+  },
+);
+
+// Execute the task
+final result = await engine.executeTask(request);
+
+// Handle result
+if (result.success) {
+  print('Result: ${result.output}');
+} else {
+  print('Error: ${result.errorMessage}');
 }
 ```
 
 ---
 
-## Firebase Remote Config on iOS
+## Security Features
 
-When you need to fetch the HuggingFace URL from Firebase:
+The SDK includes comprehensive security features:
 
-```swift
-// FirebaseRemoteConfigHelper.swift
-import FirebaseRemoteConfig
+### Integrity Verification
+- Verifies SDK code integrity at runtime
+- Detects tampering attempts
+- Checks for debuggers and emulation
 
-class FirebaseRemoteConfigHelper {
-    static let shared = FirebaseRemoteConfigHelper()
-    
-    private let remoteConfig: FirebaseRemoteConfig
-    
-    init() {
-        remoteConfig = FirebaseRemoteConfig.app()
-        remoteConfig.setDefaults([
-            "hf_model_url": ""
-        ])
-    }
-    
-    func getHuggingFaceUrl() -> String {
-        let url = remoteConfig.string("hf_model_url")
-        return url.isEmpty ? "https://huggingface.co/models" : url
-    }
-    
-    func fetchConfig() {
-        remoteConfig.fetchAndActivate { status, error in
-            if status == .successFetchedFromServer ||
-               status == .successUsingPreFetchedData {
-                // Config fetched successfully
-            } else {
-                // Handle error
-            }
-        }
-    }
-}
-```
+### Data Protection
+- Per-customer encryption keys (HKDF-derived)
+- AES-256-GCM encryption for customer data
+- Secure storage for sensitive data
+
+### Permission Guard
+- Permissions required for sensitive operations
+- Payment/delete/modify operations require explicit user consent
+- Remote config updates require user confirmation
+
+### Tamper Detection
+- Detects rooted/jailbroken devices
+- Detects emulators
+- Detects debugging tools
+- Detects reverse engineering attempts
+
+### Emergency Response
+- Automatic lockout on tamper detection
+- Secure logout and data deletion
+- Remote wipe capability
 
 ---
 
-## Summary
+## iOS Specific Notes
 
-| Component | iOS Implementation |
-|-----------|-------------------|
-| AI SDK | Flutter module or platform channels |
-| Firebase | GoogleService-Info.plist + Firebase pods |
-| Remote Config | FirebaseRemoteConfig.app() |
-| Model URL | Parameter: `hf_model_url` |
-| Progress | Platform channels or Flutter UI |
+### Keychain Sharing
+
+If you use Remote Config on macOS, you need to enable Keychain Sharing in Xcode. For iOS, this is typically not required.
+
+### Background Modes
+
+If your app uses background processing with the SDK, ensure you have the appropriate background modes enabled in your Info.plist:
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+  <string>fetch</string>
+  <string>processing</string>
+</array>
+```
+
+### Apple App Store Review
+
+If you submit your app to the App Store:
+- Ensure the SDK's Firebase configuration is correct
+- The SDK's Remote Config fetches the model URL from your Firebase project
+- Make sure the model URL points to a valid HuggingFace model
+
+### CocoaPods
+
+If using CocoaPods, ensure your Podfile includes the necessary Firebase pods if your app uses Firebase.
 
 ---
 
 ## Troubleshooting
 
-**"GoogleService-Info.plist not found":**
-- Ensure file is in your app target's main bundle
-- Check Build Phases → Copy Bundle Resources includes the file
+### Firebase Not Configured
 
-**Firebase not initializing:**
-- Call `FirebaseApp.configure()` before any Firebase usage
-- Verify GoogleService-Info.plist is correct
+If the SDK's Firebase is not configured:
+- The SDK will use default values
+- Model URL will be the default HuggingFace URL
+- Analytics won't work
 
-**Flutter module not loading:**
-- Run `pod install` after adding the module
-- Check that the pod is in your Podfile
-- Clean build folder and rebuild
+**Fix:** Configure the SDK's Firebase project and update `SdkFirebaseOptions`.
 
-**Method channel not working:**
-- Ensure channel names match on both sides
-- Check Flutter engine is properly initialized before calling channels
+### Model Download Fails
+
+- Check network connectivity
+- Verify HuggingFace model URL is valid
+- Check device storage availability
+- Check if model ID is correct
+
+### SDK Firebase Conflicts with Host App Firebase
+
+If your host app has Firebase and the SDK also has Firebase, they operate independently:
+- Host app Firebase handles host app features
+- SDK Firebase handles SDK Remote Config
+- They use different app names to avoid conflicts
+
+### iOS Build Errors
+
+If you encounter build errors:
+- Ensure CocoaPods is up to date: `sudo gem install cocoapods`
+- Run `pod install` in the iOS directory
+- Clean build folder: `xcodebuild clean`
+- Check that all Firebase config files are in the right place
+
+---
+
+## Summary
+
+- **SDK has its own Firebase** for Remote Config (SDK's Firebase project)
+- **Host app may have its own Firebase** for its features (host app's Firebase project)
+- **SDK's Firebase is required** for fetching the HuggingFace model URL
+- **Host app's Firebase is optional** - SDK works without it
+- **Both can coexist** - SDK uses a separate Firebase app name
+
+The SDK is self-contained with its own Firebase for Remote Config. The host app doesn't need to configure Firebase for the SDK to work.

@@ -1,152 +1,81 @@
-/// Firebase setup helper
-/// 
-/// This file documents how to configure Firebase for the app.
-/// When you have your google-services.json (Android) and GoogleService-Info.plist (iOS),
-/// place them in the respective platform folders.
-/// 
-/// ## Android Setup
-/// 1. Place `google-services.json` in `android/app/`
-/// 2. Add to android/app/build.gradle:
-///    ```
-///    apply plugin: 'com.google.gms.google-services'
-///    ```
-/// 3. Add to android/build.gradle (project level):
-///    ```
-///    classpath 'com.google.gms:google-services:4.4.0'
-///    ```
-/// 
-/// ## iOS Setup
-/// 1. Place `GoogleService-Info.plist` in `ios/Runner/`
-/// 2. Add to ios/Runner.xcodeproj/project.pbxproj
-/// 
-/// ## Firebase Dependencies (pubspec.yaml)
-/// Add these to example/pubspec.yaml dependencies:
-/// ```yaml
-/// dependencies:
-///   firebase_core: ^2.24.0
-///   firebase_remote_config: ^4.3.0
-/// ```
-/// 
-/// ## Initialization (in main.dart)
-/// ```dart
-/// import 'package:firebase_core/firebase_core.dart';
-/// 
-/// void main() async {
-///   WidgetsFlutterBinding.ensureInitialized();
-///   await Firebase.initializeApp();
-///   // Then proceed with app initialization
-/// }
-/// ```
-
-class FirebaseSetupConfig {
-  // Firebase project configuration
-  // These would come from Firebase console when you create a project
-  
-  /// Firebase project ID (set in Firebase console)
-  static const String projectId = 'YOUR_FIREBASE_PROJECT_ID';
-  
-  /// Firebase API key (auto-configured via google-services.json / GoogleService-Info.plist)
-  // static const String apiKey = 'YOUR_API_KEY'; // Not needed with proper config files
-  
-  /// Firebase Remote Config parameter keys
-  static const String modelsParamKey = 'available_models';
-  static const String enableCustomModelsKey = 'enable_custom_models';
-  static const String defaultModelRepoKey = 'default_model_repo';
-  
-  /// Remote config parameter names
-  static const String paramAvailableModels = 'available_models';
-  static const String paramEnableCustomModels = 'enable_custom_models';
-  static const String paramDefaultModelRepo = 'default_model_repo';
-  
-  /// Default remote config values
-  static const List<Map<String, dynamic>> defaultModels = [
-    {
-      'repo_id': 'distilbert-base-uncased-finetuned-sst-2-english',
-      'display_name': 'Sentiment Analysis',
-      'description': 'DistilBERT fine-tuned for sentiment analysis',
-      'license': 'Apache 2.0',
-      'task_type': 'text_classification',
-      'min_quality': 0.85,
-      'enabled': true,
-      'variants': [
-        {'quantization': 'float32', 'download_size_mb': 250, 'memory_requirement_mb': 500, 'estimated_latency_ms': 50},
-        {'quantization': 'int8', 'download_size_mb': 68, 'memory_requirement_mb': 200, 'estimated_latency_ms': 30},
-        {'quantization': 'int4', 'download_size_mb': 36, 'memory_requirement_mb': 120, 'estimated_latency_ms': 25},
-      ],
-    },
-    {
-      'repo_id': 'gpt2',
-      'display_name': 'GPT-2 Small',
-      'description': '117M parameter text generation model',
-      'license': 'MIT',
-      'task_type': 'text_generation',
-      'min_quality': 0.7,
-      'enabled': true,
-      'variants': [
-        {'quantization': 'float32', 'download_size_mb': 500, 'memory_requirement_mb': 1000, 'estimated_latency_ms': 100},
-        {'quantization': 'float16', 'download_size_mb': 250, 'memory_requirement_mb': 600, 'estimated_latency_ms': 80},
-        {'quantization': 'int8', 'download_size_mb': 128, 'memory_requirement_mb': 350, 'estimated_latency_ms': 60},
-        {'quantization': 'int4', 'download_size_mb': 65, 'memory_requirement_mb': 200, 'estimated_latency_ms': 45},
-      ],
-    },
-  ];
-  
-  /// How to structure the available_models parameter in Firebase Remote Config
-  /// 
-  /// In Firebase Console → Remote Config → Parameters:
-  /// - Key: `available_models`
-  /// - Type: String
-  /// - Value: JSON array of model configurations
-  /// 
-  /// Example JSON value:
-  /// ```json
-  /// [
-  ///   {
-  ///     "repo_id": "distilbert-base-uncased-finetuned-sst-2-english",
-  ///     "display_name": "Sentiment Analysis",
-  ///     "description": "DistilBERT for sentiment",
-  ///     "license": "Apache 2.0",
-  ///     "task_type": "text_classification",
-  ///     "min_quality": 0.85,
-  ///     "enabled": true,
-  ///     "variants": [
-  ///       {"quantization": "float32", "download_size_mb": 250, "memory_requirement_mb": 500, "estimated_latency_ms": 50},
-  ///       {"quantization": "int8", "download_size_mb": 68, "memory_requirement_mb": 200, "estimated_latency_ms": 30}
-  ///     ]
-  ///   }
-  /// ]
-  /// ```
-}
-
-/// Helper to validate Firebase config files exist
-class FirebaseConfigValidator {
-  /// Check if google-services.json exists (Android)
-  static bool hasAndroidConfig() {
-    // In production, check file system
-    // Return true if google-services.json is in android/app/
-    return false; // Placeholder - implement based on your file check logic
-  }
-  
-  /// Check if GoogleService-Info.plist exists (iOS)
-  static bool hasIosConfig() {
-    // In production, check file system
-    // Return true if GoogleService-Info.plist is in ios/Runner/
-    return false; // Placeholder - implement based on your file check logic
-  }
-  
-  /// Get setup status
-  static String getSetupStatus() {
-    final hasAndroid = hasAndroidConfig();
-    final hasIos = hasIosConfig();
-    
-    if (hasAndroid && hasIos) {
-      return 'Firebase configured for Android and iOS';
-    } else if (hasAndroid) {
-      return 'Firebase configured for Android only';
-    } else if (hasIos) {
-      return 'Firebase configured for iOS only';
-    } else {
-      return 'Firebase not configured - add google-services.json and GoogleService-Info.plist';
-    }
-  }
-}
+/// Firebase Setup Documentation
+///
+/// ## SDK Firebase Architecture
+///
+/// The AI SDK has its own Firebase configuration for Remote Config.
+/// This is separate from the host app's Firebase configuration.
+///
+/// ## Two Firebase Configurations
+///
+/// ### 1. SDK's Firebase (AI SDK's own Firebase)
+/// - Used by the SDK for Remote Config (fetching HuggingFace model URL)
+/// - Configured in the SDK's Firebase project
+/// - The SDK initializes this automatically
+/// - Host app doesn't need to configure this
+/// - Placeholders are in `SdkFirebaseOptions` (in the SDK)
+///
+/// ### 2. Host App's Firebase (User's own Firebase)
+/// - Used by the host app for its own features (analytics, auth, etc.)
+/// - Configured in the host app's Firebase project
+/// - The host app configures this for its own needs
+/// - The host app may or may not have Firebase
+///
+/// ## SDK Firebase is Required for Remote Config
+///
+/// The SDK uses Firebase Remote Config to fetch the HuggingFace model URL.
+/// This is the SDK's own Firebase, not the host app's.
+///
+/// Even if the host app has no Firebase, the SDK's Firebase handles
+/// the Remote Config need.
+///
+/// ## Setup the SDK's Firebase
+///
+/// 1. Create a Firebase project for the SDK at https://console.firebase.google.com
+/// 2. Add Android and iOS apps to the project
+/// 3. Download google-services.json (Android) and GoogleService-Info.plist (iOS)
+/// 4. Replace the placeholder values in the SDK's SdkFirebaseOptions
+///
+/// ## Host App May Have Its Own Firebase
+///
+/// The host app (WhatsApp, Instagram, or any custom app) may have its own
+/// Firebase configuration for its own features. This is completely separate
+/// from the SDK's Firebase.
+///
+/// ## If Host App Has Firebase
+///
+/// If the host app already has Firebase with Remote Config configured for
+/// the model URL, the SDK can optionally use the host app's Firebase instead
+/// of its own. This is configured in SdkFirebaseInitializer.
+///
+/// ## If Host App Has No Firebase
+///
+/// If the host app has no Firebase at all, the SDK's Firebase works
+/// independently. The SDK initializes its own Firebase app for Remote Config.
+///
+/// ## Model URL Configuration in Firebase Remote Config
+///
+/// In the SDK's Firebase project, set up a Remote Config parameter:
+/// - Parameter name: hf_model_url
+/// - Value: https://huggingface.co/<owner>/<repo>
+///
+/// Example: https://huggingface.co/facebook/opt-1.3b
+///
+/// ## Example App Firebase
+///
+/// The example app in this project uses the SDK's Firebase. It doesn't need
+/// its own Firebase for the model download feature. However, if you want to
+/// add Firebase features to the example app (analytics, etc.), you can add
+/// the host app's Firebase config separately.
+///
+/// ## User Flow in Example App
+///
+/// 1. User opens app → sees "Download Model" button (cloud icon)
+/// 2. User taps "Download Model"
+/// 3. App uses SDK's Firebase Remote Config to get model URL
+/// 4. SDK extracts repo ID from URL
+/// 5. SDK downloads model from HuggingFace
+/// 6. Model verified → loaded → user can run tasks
+///
+/// The user never selects a model - it's a background task.
+/// The model URL comes from the SDK's Firebase Remote Config.
+library firebase_setup;
