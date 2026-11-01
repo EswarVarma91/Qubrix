@@ -30,6 +30,8 @@ class HomeController extends GetxController {
   final _tamperWarning = false.obs;
   final _integrityStatus = ''.obs;
   final _usingFirebase = false.obs;
+  final _lastFirebaseFetchTime = Rxn<DateTime>();
+  final _huggingFaceUrl = ''.obs;
 
   // Getters
   String get status => _status.value;
@@ -50,18 +52,8 @@ class HomeController extends GetxController {
     super.onInit();
     _checkSecurityStatus();
     _updateModelStatus();
-    // Load HuggingFace URL from Firebase (background - user doesn't see this)
-    _loadHuggingFaceUrlFromFirebase();
-  }
-
-  void _loadHuggingFaceUrlFromFirebase() {
-    // Get HuggingFace URL from Firebase Remote Config
-    // This happens in background - user never sees URL or model selection
-    final url = _modelConfig.getHuggingFaceUrl();
-    final isFirebaseConfigured = _modelConfig.isUsingFirebase;
-    _usingFirebase.value = isFirebaseConfigured;
-    debugPrint('HuggingFace URL (from Firebase): $url');
-    // URL is loaded automatically - user doesn't choose
+    // Don't fetch Firebase on init - only when needed
+    // Firebase is only checked when there's no model downloaded
   }
 
   void _checkSecurityStatus() {
@@ -109,12 +101,23 @@ class HomeController extends GetxController {
   }
 
   // Download model from HuggingFace
-  // Model is determined by Firebase Remote Config (background)
-  // User just taps download - no selection UI
+  // Only fetches from Firebase when no model is installed
+  // Otherwise uses cached URL
   Future<void> downloadModel() async {
     if (_isDownloading.value) return;
 
-    // Get the HuggingFace URL from Firebase config (already loaded in background)
+    // Check if any model is already installed
+    final installedModels = _repository.getInstalledModels();
+    if (installedModels.isNotEmpty) {
+      // Model already downloaded - no need to check Firebase
+      _isDownloading.value = true;
+      _setStatus('Model already installed: ${installedModels.first.displayName}');
+      _updateModelStatus();
+      return;
+    }
+
+    // No model installed - fetch HuggingFace URL from Firebase
+    // This is the only time we check Firebase
     final huggingFaceUrl = _modelConfig.getHuggingFaceUrl();
 
     // Extract repo ID from HuggingFace URL
@@ -127,6 +130,8 @@ class HomeController extends GetxController {
 
     _isDownloading.value = true;
     _setStatus('${AppStrings.downloading}...');
+    _huggingFaceUrl.value = huggingFaceUrl;
+    _lastFirebaseFetchTime.value = DateTime.now();
 
     try {
       final result = await _repository.downloadModel(
