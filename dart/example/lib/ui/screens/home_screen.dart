@@ -168,17 +168,13 @@ class HomeScreen extends GetView<HomeController> {
                   const SizedBox(height: 12),
                   ActionGrid(
                     actions: [
-                      Obx(() => ActionItem(
+                      ActionItem(
                         label: AppStrings.downloadModel,
                         icon: Icons.download,
-                        description: controller.availableModels.isEmpty
-                            ? 'Loading models...'
-                            : '${controller.availableModels.length} model(s) from Firebase',
-                        onPressed: controller.availableModels.isNotEmpty
-                            ? controller.showModelPickerDialog
-                            : null,
+                        description: 'Download model from Firebase config',
+                        onPressed: controller.downloadModel,
                         isLoading: controller.isDownloading,
-                      )),
+                      ),
                       ActionItem(
                         label: AppStrings.runTask,
                         icon: Icons.play_arrow,
@@ -225,11 +221,7 @@ class HomeScreen extends GetView<HomeController> {
 
                   const SizedBox(height: 32),
                 ],
-              ),
-            ),
-          ),
-          // Model picker overlay
-          _buildModelPickerOverlay(context),
+              ),              ),
         }),
       ),
     );
@@ -322,168 +314,6 @@ class HomeScreen extends GetView<HomeController> {
       return AppStrings.modelLoaded;
     }
     return null;
-  }
-
-  /// Build model picker dialog overlay when showModelPicker is true
-  Widget _buildModelPickerOverlay(BuildContext context) {
-    if (!controller.showModelPicker) {
-      return const SizedBox.shrink();
-    }
-
-    return Stack(
-      children: [
-        ModalBarrier(
-          color: Colors.black.withValue(0.4),
-          dismissible: true,
-          onDismiss: () => controller.setShowModelPicker(false),
-        ),
-        Center(
-          child: _buildModelPickerDialog(context),
-        ),
-      ],
-    );
-  }
-
-  /// Model picker dialog - shows models from Firebase Remote Config
-  Widget _buildModelPickerDialog(BuildContext context) {
-    return Obx(() {
-      final models = controller.availableModels;
-      final selectedRepo = controller.selectedModelRepo;
-      final usingFirebase = controller.usingFirebase;
-
-      return AlertDialog(
-        title: Text(usingFirebase ? 'Models from Firebase' : 'Select Model'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Text(
-                  usingFirebase
-                      ? 'These models are configured in Firebase Remote Config.\n'
-                        'Tap a model to download it from HuggingFace.'
-                      : 'Select a HuggingFace model to download.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ),
-              if (selectedRepo.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle, color: AppColors.primary, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Selected: $selectedRepo',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          controller.setSelectedModel('');
-                        },
-                        tooltip: 'Deselect',
-                      ),
-                    ],
-                  ),
-                ),
-              Expanded(
-                child: models.isEmpty
-                    ? const Center(
-                        child: CircularProgressIndicator(),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: models.length,
-                        itemBuilder: (context, index) {
-                          final model = models[index];
-                          final isSelected = selectedRepo == model.repoId;
-
-                          return ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppColors.primaryLight
-                                    : AppColors.surfaceVariant.withValue(0.5),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.account_tree,
-                                color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
-                                size: 20,
-                              ),
-                            ),
-                            title: Text(
-                              model.displayName,
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  model.repoId,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        fontFamily: 'monospace',
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                                Text(
-                                  model.description,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                            trailing: isSelected
-                                ? const Icon(Icons.check_circle, color: AppColors.primary)
-                                : null,
-                            onTap: () => controller.selectModel(model),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              controller.setShowModelPicker(false);
-              Navigator.of(context).pop();
-            },
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: selectedRepo.isNotEmpty
-                ? () {
-                    controller.setShowModelPicker(false);
-                    Navigator.of(context).pop();
-                    controller.downloadModel();
-                  }
-                : null,
-            child: Text(AppStrings.downloadModel),
-          ),
-        ],
-      );
-    });
   }
 }
 

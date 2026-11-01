@@ -9,10 +9,7 @@ import '../../data/repositories/ai_repository.dart';
 import '../../core/bindings/app_bindings.dart';
 
 /// Home controller - all models come from Firebase Remote Config
-/// No user input needed - just tap download and Firebase tells us what to download
-
-/// GetX Controller for the home screen
-/// Manages all state without setState, using Rx variables
+/// Background task - user just taps download, no model selection UI
 class HomeController extends GetxController {
   final AdaptiveAgentEngine _engine;
   final AiRepository _repository;
@@ -20,7 +17,7 @@ class HomeController extends GetxController {
 
   HomeController(this._engine, this._repository, this._modelConfig);
 
-  // Observable state - all models come from Firebase Remote Config
+  // Observable state
   final _status = ''.obs;
   final _isInitialized = false.obs;
   final _isDownloading = false.obs;
@@ -32,9 +29,6 @@ class HomeController extends GetxController {
   final _securityStatus = ''.obs;
   final _tamperWarning = false.obs;
   final _integrityStatus = ''.obs;
-  final _firebaseModels = <ModelCatalogEntry>[].obs;
-  final _selectedModelRepo = ''.obs;
-  final _showModelPicker = false.obs;
   final _usingFirebase = false.obs;
 
   // Getters
@@ -49,9 +43,6 @@ class HomeController extends GetxController {
   String get securityStatus => _securityStatus.value;
   bool get tamperWarning => _tamperWarning.value;
   String get integrityStatus => _integrityStatus.value;
-  List<ModelCatalogEntry> get availableModels => _firebaseModels.value;
-  String get selectedModelRepo => _selectedModelRepo.value;
-  bool get showModelPicker => _showModelPicker.value;
   bool get usingFirebase => _usingFirebase.value;
 
   @override
@@ -59,23 +50,17 @@ class HomeController extends GetxController {
     super.onInit();
     _checkSecurityStatus();
     _updateModelStatus();
-    // Load models from Firebase Remote Config
-    _loadModelsFromFirebase();
+    // Load model config from Firebase (background - user doesn't see this)
+    _loadModelConfigFromFirebase();
   }
 
-  void _loadModelsFromFirebase() {
-    // Get models from Firebase Remote Config
-    // If Firebase configured → use those models
-    // If not configured → fall back to local defaults
+  void _loadModelConfigFromFirebase() {
+    // Get model config from Firebase Remote Config
+    // This happens in background - user never sees model selection
     final models = _modelConfig.getAvailableModels();
-    _firebaseModels.value = models;
-    _usingFirebase.value = _modelConfig.getAvailableModels().isNotEmpty &&
-        _modelConfig.getModel(_firebaseModels.first?.repoId ?? '') != null;
-    
-    // Auto-select first model if none selected
-    if (_selectedModelRepo.value.isEmpty && _firebaseModels.isNotEmpty) {
-      _selectedModelRepo.value = _firebaseModels.first.repoId;
-    }
+    _usingFirebase.value = models.isNotEmpty &&
+        _modelConfig.getModel(models.first.repoId) != null;
+    // Model repo is set automatically - user doesn't choose
   }
 
   void _checkSecurityStatus() {
@@ -122,39 +107,27 @@ class HomeController extends GetxController {
     }
   }
 
-  // Set status with color
-  void _setStatus(String message) {
-    _status.value = message;
-  }
-
-  // Update model status
-  void _updateModelStatus() {
-    _installedModelsCount.value = _repository.getInstalledModels().length;
-    _isModelLoaded.value = _repository.getInstalledModels().any(
-      (m) => _repository.isModelLoaded(m.id),
-    );
-  }
-
-  // Download and load model with progress
-  // All models come from Firebase Remote Config
-  // No user input needed - just tap download
+  // Download model from HuggingFace
+  // Model is determined by Firebase Remote Config (background)
+  // User just taps download - no selection UI
   Future<void> downloadModel() async {
     if (_isDownloading.value) return;
 
-    final repoId = _selectedModelRepo.value;
-    if (repoId.isEmpty) {
-      _setStatus('No model selected');
+    // Get the model repo from Firebase config (already loaded in background)
+    final models = _modelConfig.getAvailableModels();
+    if (models.isEmpty) {
+      _setStatus('No models configured');
       return;
     }
 
-    // Download the model from HuggingFace
-    // Firebase Remote Config already told us which models are available
+    // Use first model from Firebase (or local default)
+    final model = models.first;
+    final repoId = model.repoId;
+
     _isDownloading.value = true;
-    _setStatus('${AppStrings.downloading} $repoId...');
+    _setStatus('${AppStrings.downloading}...');
 
     try {
-      // Download the specified HuggingFace model
-      // The SDK handles discovery from the repo, variant selection, etc.
       final result = await _repository.downloadModel(
         repoId,
         onProgress: (progress) {
@@ -174,76 +147,15 @@ class HomeController extends GetxController {
 
       if (result.success) {
         _updateModelStatus();
-        _setStatus('${AppStrings.modelReady}: $repoId '
-            '(${(result.bytesDownloaded ?? 0)} bytes in '
-            '${(result.duration?.inSeconds ?? 0)}s)');
-        _showModelPicker.value = false;
+        _setStatus('${AppStrings.modelReady} (${(result.bytesDownloaded ?? 0)} bytes)');
       } else {
         _setStatus('${AppStrings.taskFailed}: ${result.errorMessage}');
-        _showModelPicker.value = false;
       }
     } catch (e) {
       _setStatus('Error: $e');
-      _showModelPicker.value = false;
     } finally {
       _isDownloading.value = false;
       _progress.value = null;
-    }
-  }
-
-  // Select a model to download
-  void selectModel(ModelCatalogEntry model) {
-    _selectedModelRepo.value = model.repoId;
-    _showModelPicker.value = false;
-    _setStatus('Selected: ${model.displayName}');
-  }
-
-  // Show model picker dialog - for selecting from Firebase models
-  void showModelPickerDialog() {
-    _showModelPicker.value = true;
-  }
-
-  // Set model picker visibility
-  void setShowModelPicker(bool show) {
-    _showModelPicker.value = show;
-  }
-
-  // Refresh models from Firebase
-  Future<void> refreshFirebaseModels() async {
-    _setStatus('Refreshing from Firebase...');
-    await _modelConfig.refresh();
-    _loadModelsFromFirebase();
-    _setStatus('Models updated from Firebase');
-  }
-
-  // Add a custom model to the available models list
-  void addCustomModel(ModelCatalogEntry model) {
-    // Remove existing model with same repo ID if present
-    _availableModels.removeWhere((m) => m.repoId == model.repoId);
-    _availableModels.add(model);
-    _availableModels.refresh();
-  }
-
-  // Set selected model by repo ID
-  void setSelectedModel(String repoId) {
-    _selectedModelRepo.value = repoId;
-  }
-
-  // Refresh Firebase Remote Config
-  Future<void> refreshRemoteConfig() async {
-    _setStatus('Refreshing model config...');
-    try {
-      final updated = await _firebaseConfig.fetchConfig();
-      if (updated) {
-        await _loadAvailableModels();
-        _setStatus('Model config updated from Firebase');
-        showSnackbar('Model configuration updated', isSuccessful: true);
-      } else {
-        _setStatus('Using cached model configuration');
-      }
-    } catch (e) {
-      _setStatus('Error refreshing config: $e');
-      showSnackbar('Failed to refresh config', isSuccessful: false);
     }
   }
 
@@ -362,7 +274,6 @@ class HomeController extends GetxController {
   }
 
   void navigateToSecurity() {
-    // Navigate to security details screen (could be in settings)
     showSnackbar('Security details: ${_integrityStatus.value}', isSuccessful: !_tamperWarning.value);
   }
 
@@ -377,7 +288,6 @@ class HomeController extends GetxController {
   void clearModelCache() async {
     _isLoading.value = true;
     try {
-      // Clear all downloaded models
       await _repository.clearModelCache();
       _updateModelStatus();
       showSnackbar('Model cache cleared', isSuccessful: true);
@@ -403,6 +313,17 @@ class HomeController extends GetxController {
       margin: const EdgeInsets.all(16),
       borderRadius: 8,
       isDismissible: true,
+    );
+  }
+
+  void _setStatus(String message) {
+    _status.value = message;
+  }
+
+  void _updateModelStatus() {
+    _installedModelsCount.value = _repository.getInstalledModels().length;
+    _isModelLoaded.value = _repository.getInstalledModels().any(
+      (m) => _repository.isModelLoaded(m.id),
     );
   }
 
