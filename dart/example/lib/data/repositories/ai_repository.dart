@@ -1,5 +1,4 @@
 import 'package:ai_sdk/ai_sdk.dart';
-import 'package:get_it/get_it.dart';
 
 /// Repository for AI SDK operations
 class AiRepository {

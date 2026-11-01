@@ -1,0 +1,33 @@
+# Gradle files
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Proguard folder
+**/build/
+**/out/
+
+# Signing files
+**/*.jks
+**/*.keystore
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Google Services
+google-services.json
+
+# Mac
+.DS_Store
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/

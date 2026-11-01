@@ -1,103 +1,108 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_strings.dart';
-import 'adaptive_button.dart';
+import '../../core/constants/app_colors.dart';
 
-/// Adaptive grid of action buttons that works on mobile and tablet
+class ActionItem {
+  final String label;
+  final IconData icon;
+  final String description;
+  final VoidCallback? onPressed;
+  final bool isLoading;
+  
+  const ActionItem({
+    required this.label,
+    required this.icon,
+    required this.description,
+    this.onPressed,
+    this.isLoading = false,
+  });
+}
+
 class ActionGrid extends StatelessWidget {
   final List<ActionItem> actions;
-
-  const ActionGrid({super.key, required this.actions});
+  
+  const ActionGrid({
+    super.key,
+    required this.actions,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = MediaQuery.sizeOf(context).width > 600;
-
-    if (isTablet) {
-      return Wrap(
-        spacing: 16,
-        runSpacing: 16,
-        alignment: WrapAlignment.center,
-        children: actions.map((action) {
-          return SizedBox(
-            width: 180,
-            child: _buildActionCard(context, action),
-          );
-        }).toList(),
-      );
-    }
-
-    return Column(
-      children: actions.map((action) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: _buildActionCard(context, action),
-        );
-      }).toList(),
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.2,
+      ),
+      itemCount: actions.length,
+      itemBuilder: (context, index) {
+        final action = actions[index];
+        return _ActionTile(action: action);
+      },
     );
   }
+}
 
-  Widget _buildActionCard(BuildContext context, ActionItem action) {
+class _ActionTile extends StatelessWidget {
+  final ActionItem action;
+  
+  const _ActionTile({required this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = action.isLoading || action.onPressed == null;
+    final theme = Theme.of(context);
+    
     return Card(
       child: InkWell(
-        onTap: action.isLoading ? null : action.onPressed,
+        onTap: action.onPressed,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                action.icon,
-                size: 32,
-                color: AppColors.primary,
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValue(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  action.icon,
+                  color: isDisabled 
+                      ? AppColors.onSurfaceVariant 
+                      : AppColors.primary,
+                  size: 32,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
                 action.label,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                textAlign: TextAlign.center,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isDisabled 
+                      ? AppColors.onSurfaceVariant 
+                      : AppColors.onSurface,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              if (action.description != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  action.description!,
-                  style: Theme.of(context).textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 4),
+              Text(
+                action.description,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceVariant,
                 ),
-              ],
-              if (action.isLoading) ...[
-                const SizedBox(height: 12),
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ],
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
       ),
     );
   }
-}
-
-/// Action item for the grid
-class ActionItem {
-  final String label;
-  final VoidCallback? onPressed;
-  final IconData icon;
-  final String? description;
-  final bool isLoading;
-
-  const ActionItem({
-    required this.label,
-    this.onPressed,
-    required this.icon,
-    this.description,
-    this.isLoading = false,
-  });
 }

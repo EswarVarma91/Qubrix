@@ -1,70 +1,71 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_strings.dart';
+import '../../core/constants/app_colors.dart';
 
-/// Reusable adaptive button that works on mobile and tablet
 class AdaptiveButton extends StatelessWidget {
   final String label;
+  final IconData icon;
   final VoidCallback? onPressed;
   final bool isLoading;
   final bool isOutlined;
   final double? width;
-  final IconData? icon;
-  final Color? color;
-
+  final Widget? trailing;
+  
   const AdaptiveButton({
     super.key,
     required this.label,
+    required this.icon,
     this.onPressed,
     this.isLoading = false,
     this.isOutlined = false,
     this.width,
-    this.icon,
-    this.color,
+    this.trailing,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = MediaQuery.sizeOf(context).width > 600;
-
-    return SizedBox(
-      width: width ?? (isTablet ? 200 : double.infinity),
-      child: isOutlined
-          ? OutlinedButton(
-              onPressed: isLoading ? null : onPressed,
-              child: _buildChild(),
-            )
-          : ElevatedButton(
-              onPressed: isLoading ? null : onPressed,
-              child: _buildChild(),
-            ),
-    );
-  }
-
-  Widget _buildChild() {
-    if (isLoading) {
-      return SizedBox(
-        height: 24,
-        width: 24,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(
-            isOutlined ? (color ?? AppColors.primary) : AppColors.onPrimary,
+    final isDisabled = isLoading || onPressed == null;
+    
+    if (isOutlined) {
+      return OutlinedButton.icon(
+        onPressed: isDisabled ? null : onPressed,
+        icon: isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(icon, size: 20),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: isDisabled ? AppColors.onSurfaceVariant : AppColors.primary,
+          side: BorderSide(
+            color: isDisabled ? AppColors.outline : AppColors.primary,
           ),
+          minimumSize: const Size(88, 40),
         ),
+        trailing: trailing,
       );
     }
-
-    if (icon != null) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 20),
-          const SizedBox(width: 8),
-          Text(label),
-        ],
-      );
-    }
-
-    return Text(label);
+    
+    return ElevatedButton.icon(
+      onPressed: isDisabled ? null : onPressed,
+      icon: isLoading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : Icon(icon, size: 20),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isDisabled ? AppColors.surfaceVariant : AppColors.primary,
+        foregroundColor: AppColors.onPrimary,
+        minimumSize: const Size(88, 40),
+      ),
+      trailing: trailing,
+    );
   }
 }

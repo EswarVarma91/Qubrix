@@ -1,95 +1,83 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_strings.dart';
+import '../../core/constants/app_colors.dart';
 
-/// Reusable status card widget showing current state
 class StatusCard extends StatelessWidget {
   final String title;
   final String status;
-  final bool isLoading;
+  final IconData icon;
   final String? subtitle;
-  final IconData? icon;
-
+  final bool isLoading;
+  
   const StatusCard({
     super.key,
     required this.title,
     required this.status,
-    this.isLoading = false,
+    required this.icon,
     this.subtitle,
-    this.icon,
+    this.isLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = MediaQuery.sizeOf(context).width > 600;
-
     return Card(
       child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: isTablet ? 24 : 16,
-          vertical: isTablet ? 20 : 16,
-        ),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
-                if (icon != null) ...[
-                  Icon(
-                    icon,
-                    size: 20,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                Icon(
+                  icon,
+                  color: AppColors.primary,
+                  size: 24,
                 ),
-                const Spacer(),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
                 if (isLoading)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                  const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else
+                  Icon(
+                    Icons.check_circle,
+                    color: AppColors.success,
+                    size: 20,
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               status,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: _getStatusColor(),
+                    color: AppColors.primary,
                     fontWeight: FontWeight.w500,
                   ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
             ),
             if (subtitle != null) ...[
               const SizedBox(height: 4),
               Text(
                 subtitle!,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
               ),
             ],
           ],
         ),
       ),
     );
-  }
-
-  Color _getStatusColor() {
-    if (status.isEmpty || status == AppStrings.loading) {
-      return AppColors.onSurfaceVariant;
-    }
-    if (status.contains('Error') || status.contains('failed')) {
-      return AppColors.errorColor;
-    }
-    if (status.contains('ready') || status.contains('completed')) {
-      return AppColors.readyColor;
-    }
-    return AppColors.onSurface;
   }
 }

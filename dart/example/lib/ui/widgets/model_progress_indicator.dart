@@ -1,78 +1,116 @@
 import 'package:flutter/material.dart';
-import 'package:ai_sdk/ai_sdk.dart';
-import '../../core/constants/app_strings.dart';
+import '../../core/constants/app_colors.dart';
 
-/// Reusable widget to show model download/loading progress
 class ModelProgressIndicator extends StatelessWidget {
-  final ModelProgress? progress;
+  final dynamic progress;
   final bool isLoading;
-
+  
   const ModelProgressIndicator({
     super.key,
     required this.progress,
-    this.isLoading = false,
+    required this.isLoading,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (!isLoading && progress == null) {
+    if (!isLoading || progress == null) {
       return const SizedBox.shrink();
     }
-
-    return Column(
-      children: [
-        // Progress bar
-        LinearProgressIndicator(
-          value: progress != null ? progress!.percent : null,
-          backgroundColor: _getProgressColor().withValue(0.2),
-          valueColor: AlwaysStoppedAnimation<Color>(
-            _getProgressColor(),
-          ),
-          minHeight: 8,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        const SizedBox(height: 12),
-
-        // Status text
-        Text(
-          _getStatusText(),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: _getProgressColor(),
-                fontWeight: FontWeight.w500,
+    
+    final percent = progress.percent / 100;
+    final operation = progress.operation?.name ?? 'Loading';
+    final status = progress.status ?? '';
+    final detail = progress.detail ?? '';
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.download,
+                  color: AppColors.downloadingColor,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Model Download',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                Text(
+                  '${(percent * 100).toStringAsFixed(1)}%',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(
+              value: percent,
+              backgroundColor: AppColors.surfaceVariant,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _getOperationColor(operation),
               ),
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              operation,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: _getOperationColor(operation),
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            if (status.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                status,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            if (detail.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                detail,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.primary,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ],
         ),
-      ],
+      ),
     );
   }
 
-  Color _getProgressColor() {
-    if (progress == null) return AppColors.primary;
-
-    switch (progress!.operation) {
-      case ModelOperationType.downloading:
+  Color _getOperationColor(String operation) {
+    switch (operation.toLowerCase()) {
+      case 'downloading':
         return AppColors.downloadingColor;
-      case ModelOperationType.verifying:
-        return AppColors.primary;
-      case ModelOperationType.loading:
+      case 'verifying':
+        return AppColors.warning;
+      case 'loading':
         return AppColors.loadingColor;
-      case ModelOperationType.initializing:
-        return AppColors.success;
+      case 'initializing':
+        return AppColors.primary;
+      default:
+        return AppColors.primary;
     }
-  }
-
-  String _getStatusText() {
-    if (progress == null) return '';
-
-    final operationName = progress!.operation.name.toUpperCase();
-    final percent = (progress!.percent * 100).toStringAsFixed(0);
-    final detail = progress!.detail ?? '';
-
-    return '$operationName: $percent%${detail.isNotEmpty ? ' - $detail' : ''}';
-  }
-}
-
-extension on Color {
-  Color withValue(double opacity) {
-    return withOpacity(opacity);
   }
 }

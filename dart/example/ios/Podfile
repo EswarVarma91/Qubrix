@@ -1,0 +1,46 @@
+platform :ios, '12.0'
+
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path('../build/ios/Debug/generated.xcconfig', __FILE__)
+
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get has been run first."
+  end
+
+  File.foreach generated_xcode_build_settings_path.single_line_parse { |line|
+    return line.split('=')[1].strip if line.start_with? 'FLUTTER_ROOT='
+  }
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting build/ios and running 'flutter pub get'."
+end
+
+require File.expand_path('../flutter_tools/validations/xcode.rb', flutter_root)
+require File.expand_path('../flutter_tools/ios/xcode.rb', flutter_root)
+require File.expand_path('../flutter_tools/validations/ios/xcode.rb', flutter_root)
+
+flutter_root = flutter_root
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
+end

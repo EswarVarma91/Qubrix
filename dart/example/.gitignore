@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+
+# Local config
+local.properties
+google-services.json
+
+# iOS
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+xcuserdata/
+*.xccheckout
+
+# Mac
+.DS_Store
+
+# Firebase
+GoogleService-Info.plist

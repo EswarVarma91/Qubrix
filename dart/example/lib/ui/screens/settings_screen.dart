@@ -73,7 +73,9 @@ class SettingsScreen extends GetView<HomeController> {
               ],
             ),
             
-            const SizedBox(height: 24),              _buildSectionHeader(context, 'Security'),
+            const SizedBox(height: 24),
+            
+            _buildSectionHeader(context, 'Security'),
             _buildSettingsList(
               context,
               [
@@ -235,7 +237,7 @@ class SettingsScreen extends GetView<HomeController> {
   void _showModelVerificationInfo(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Model Verification'),
         content: const Text(
           'All downloaded models are verified using cryptographic hashes.\n\n'
@@ -244,27 +246,7 @@ class SettingsScreen extends GetView<HomeController> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showModelVerificationInfo(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Model Verification'),
-        content: const Text(
-          'All downloaded models are verified using cryptographic hashes.\n\n'
-          'This ensures models haven\'t been tampered with and are the '
-          'authentic versions from the source.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('OK'),
           ),
         ],
@@ -371,6 +353,26 @@ class SettingsScreen extends GetView<HomeController> {
     }
     
     return '${models.length} models from Firebase';
+  }
+
+  void _showPrivacyInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Privacy Mode'),
+        content: const Text(
+          'Privacy mode processes data locally on the device.\n\n'
+          'When enabled, no data is sent to external servers.\n'
+          'This provides maximum privacy but may limit some features.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
