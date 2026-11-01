@@ -39,8 +39,6 @@ class SdkFirebaseOptions {
           projectId: 'YOUR_PROJECT_ID',
           databaseURL: 'https://YOUR_PROJECT_ID.firebaseio.com',
           storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-          messagingClusterId: null,
-          isRunningOnChromeOS: false,
           deepLinkURLScheme: null,
         );
       case TargetPlatform.iOS:
@@ -51,7 +49,6 @@ class SdkFirebaseOptions {
           projectId: 'YOUR_PROJECT_ID',
           databaseURL: 'https://YOUR_PROJECT_ID.firebaseio.com',
           storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-          messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
         );
       default:
         throw UnsupportedError(

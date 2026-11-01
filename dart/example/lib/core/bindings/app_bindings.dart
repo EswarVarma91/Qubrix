@@ -1,7 +1,9 @@
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 import '../firebase_remote_config.dart';
 import '../../data/repositories/ai_repository.dart';
+import '../../ui/controllers/home_controller.dart';
 
 final getIt = GetIt.instance;
 
@@ -20,4 +22,20 @@ Future<void> setupDependencies() async {
   // Initialize AI repository
   final aiRepository = AiRepository(engine);
   getIt.registerSingleton<AiRepository>(aiRepository);
+}
+
+/// GetX binding for the home route.
+class HomeBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.put(HomeController());
+  }
+}
+
+/// GetX binding for the settings route.
+class SettingsBinding extends Bindings {
+  @override
+  void dependencies() {
+    Get.put(HomeController());
+  }
 }

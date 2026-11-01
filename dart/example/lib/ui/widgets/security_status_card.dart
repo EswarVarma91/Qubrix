@@ -18,7 +18,7 @@ class SecurityStatusCard extends StatelessWidget {
     final theme = Theme.of(context);
     
     return Card(
-      color: isSecure ? AppColors.successLight : AppColors.error.withValue(0.1),
+      color: isSecure ? AppColors.successLight : AppColors.error.withValues(alpha: 0.1),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

@@ -7,7 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'action_registry.dart';
 import 'permission_manager.dart';
-import '../../core/types.dart';
+import '../core/types.dart';
 
 /// Automation configuration
 class AutomationConfig {
@@ -733,7 +733,12 @@ class AutomationEngine {
     // Example: Parse simple goals
     final lowerGoal = goal.toLowerCase();
 
-    if (lowerGoal.contains('create report') || lowerGoal.contains('generate report')) {
+    final mentionsReport = lowerGoal.contains('report');
+    final wantsCreation = lowerGoal.contains('create') ||
+        lowerGoal.contains('generate') ||
+        lowerGoal.contains('prepare');
+
+    if (mentionsReport && wantsCreation) {
       return ExecutionPlan(
         goal: 'Prepare report',
         steps: [

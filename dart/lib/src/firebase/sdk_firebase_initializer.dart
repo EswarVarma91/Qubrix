@@ -1,7 +1,5 @@
-import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
-import '../_exports.dart' as sdk exports;
+import 'sdk_firebase_options.dart';
 
 /// SDK Firebase Initializer.
 ///
@@ -75,14 +73,14 @@ class SdkFirebaseInitializer {
         app = Firebase.app(appName);
       } catch (e) {
         app = await Firebase.initializeApp(
-          options,
+          options: options,
           name: appName,
         );
       }
     } else {
       // No host Firebase - initialize SDK's own Firebase
       app = await Firebase.initializeApp(
-        options,
+        options: options,
         name: appName,
       );
     }
@@ -116,47 +114,7 @@ class SdkFirebaseInitializer {
   ///
   /// These need to be replaced with actual Firebase credentials.
   static FirebaseOptions _getSdkOptions() {
-    // Web platform
-    if (kIsWeb) {
-      return FirebaseOptions(
-        apiKey: 'YOUR_WEB_API_KEY',
-        appId: 'YOUR_WEB_APP_ID',
-        messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-        projectId: 'YOUR_PROJECT_ID',
-        authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-        databaseURL: 'https://YOUR_PROJECT_ID.firebaseio.com',
-        storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-        measurementId: 'YOUR_MEASUREMENT_ID',
-      );
-    }
-
-    // Mobile platforms
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return FirebaseOptions(
-          apiKey: 'YOUR_ANDROID_API_KEY',
-          appId: 'YOUR_ANDROID_APP_ID',
-          messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-          projectId: 'YOUR_PROJECT_ID',
-          databaseURL: 'https://YOUR_PROJECT_ID.firebaseio.com',
-          storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-          messagingClusterId: null,
-          isRunningOnChromeOS: false,
-          deepLinkURLScheme: null,
-        );
-      case TargetPlatform.iOS:
-        return FirebaseOptions(
-          apiKey: 'YOUR_IOS_API_KEY',
-          appId: 'YOUR_IOS_APP_ID',
-          messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-          projectId: 'YOUR_PROJECT_ID',
-          databaseURL: 'https://YOUR_PROJECT_ID.firebaseio.com',
-          storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-          messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-        );
-      default:
-        throw UnsupportedError('Unsupported platform');
-    }
+    return SdkFirebaseOptions.currentPlatform;
   }
 
   /// Reset SDK initialization state.

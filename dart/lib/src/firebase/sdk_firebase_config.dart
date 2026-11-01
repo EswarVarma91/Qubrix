@@ -1,7 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
-import '../_exports.dart' as sdk exports;
+import 'sdk_firebase_options.dart';
 
 /// SDK's Firebase Remote Config service.
 ///
@@ -79,15 +79,15 @@ class SdkRemoteConfigService {
         _app = Firebase.app('ai_sdk_remote_config');
       } catch (e) {
         // App doesn't exist, create a new one
-        _app = Firebase.initializeApp(
-          options,
+        _app = await Firebase.initializeApp(
+          options: options,
           name: 'ai_sdk_remote_config',
         );
       }
     } else {
       // No Firebase apps exist, initialize new one
       _app = await Firebase.initializeApp(
-        options,
+        options: options,
         name: 'ai_sdk_remote_config',
       );
     }

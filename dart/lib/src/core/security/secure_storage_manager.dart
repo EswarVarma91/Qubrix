@@ -47,14 +47,14 @@ class SecureStorageManager {
     Map<String, String>? metadata,
   }) async {
     if (!config.enabled) {
-      throw SecurityException('Security is disabled');
+      throw SecureStorageException('Security is disabled');
     }
 
     // Encrypt the key before storage (defense in depth)
     final encryptedKey = _encryptKeyForStorage(key);
     
     // Store as base64 string
-    final storageValue = base64.encode(encryptedKey.bytes);
+    final storageValue = base64.encode(encryptedKey);
     
     // Add metadata
     final fullValue = jsonEncode({
@@ -86,7 +86,7 @@ class SecureStorageManager {
     String? biometricReason,
   }) async {
     if (!config.enabled) {
-      throw SecurityException('Security is disabled');
+      throw SecureStorageException('Security is disabled');
     }
 
     // Check cache first (faster)
@@ -98,7 +98,7 @@ class SecureStorageManager {
           reason: biometricReason ?? 'Access encryption key',
         );
         if (!authenticated) {
-          throw SecurityException(
+          throw SecureStorageException(
             'Biometric authentication required to access key',
             code: 'BIOMETRIC_REQUIRED',
           );
@@ -118,7 +118,7 @@ class SecureStorageManager {
     // Retrieve from secure storage
     final storedValue = _secureStorage[keyId];
     if (storedValue == null) {
-      throw SecurityException(
+      throw SecureStorageException(
         'Key not found: $keyId',
         code: 'KEY_NOT_FOUND',
       );
@@ -141,7 +141,7 @@ class SecureStorageManager {
         reason: biometricReason ?? 'Access encryption key',
       );
       if (!authenticated) {
-        throw SecurityException(
+        throw SecureStorageException(
           'Biometric authentication required',
           code: 'BIOMETRIC_REQUIRED',
         );
@@ -204,10 +204,10 @@ class SecureStorageManager {
     List<String>? dataIdsToReEncrypt,
   }) async {
     if (!config.enabled) {
-      throw SecurityException('Security is disabled');
+      throw SecureStorageException('Security is disabled');
     }
 
-    final oldKey = await retrieveKey(keyId: keyId);
+    await retrieveKey(keyId: keyId);
     
     // Store new key
     await storeKey(
@@ -227,7 +227,7 @@ class SecureStorageManager {
     
     // Re-encrypt data if needed
     if (reEncryptData && dataIdsToReEncrypt != null) {
-      for (final dataId in dataIdsToReEncrypt) {
+      for (var i = 0; i < dataIdsToReEncrypt.length; i++) {
         // In production: re-encrypt data with new key
         // This is a placeholder
       }
@@ -257,7 +257,7 @@ class SecureStorageManager {
     required String backupKeyId,
     String? backupLocation,
   }) async {
-    final key = await retrieveKey(keyId: keyId);
+    await retrieveKey(keyId: keyId);
     
     // In production: encrypt with backup key and upload to secure storage
     // For now: return a placeholder backup reference
@@ -338,7 +338,7 @@ Device Master Key: ${hasKey('device_master_key') ? 'Present' : 'Missing'}
     // For now: simple protection (in production, use asymmetric encryption
     // or platform-provided key wrapping)
     final protectedKey = encrypt.Key(
-      key.bytes.map((b) => b ^ 0xFF).toList(),
+      Uint8List.fromList(key.bytes.map((b) => b ^ 0xFF).toList()),
     );
     
     return protectedKey.bytes;

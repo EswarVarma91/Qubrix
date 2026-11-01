@@ -4,6 +4,7 @@
 /// Stores model metadata, benchmarks, and performance characteristics.
 
 import 'package:flutter/foundation.dart';
+import '../core/types.dart';
 import 'model_types.dart';
 
 /// Model catalog that maintains the validated model inventory

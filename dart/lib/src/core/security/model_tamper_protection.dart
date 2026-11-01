@@ -1,7 +1,7 @@
-import 'dart:convert';
-import '../security/security_config.dart';
+import 'security_config.dart';
+import '../../model/model_types.dart';
+import 'audit_logger.dart';
 import 'integrity_verifier.dart';
-import 'data_protector.dart';
 
 /// Protection against model tampering, replacement, and poisoning
 /// 
@@ -69,7 +69,7 @@ class ModelTamperProtection {
         modelId,
         failureType: ModelTamperFailureType.hashMismatch,
         reason: 'Model hash does not match expected',
-        details: hashResult.details,
+        details: hashResult.details ?? '',
       );
     }
 
@@ -94,15 +94,15 @@ class ModelTamperProtection {
     }
 
     // Check 3: Check for known substitution
-    final expectedHash = variant.checksum ?? '';
+    final variantHash = variant.checksum ?? '';
     if (_knownHashes.containsKey(modelId)) {
       final knownHash = _knownHashes[modelId]!;
-      if (knownHash != expectedHash) {
+      if (knownHash != variantHash) {
         // Hash changed - model might have been substituted
         // Check if it's a legitimate update
         final isLegitimateUpdate = await _isLegitimateUpdate(
           modelId,
-          expectedHash,
+          variantHash,
           variant.version,
         );
         
@@ -115,7 +115,7 @@ class ModelTamperProtection {
             modelId,
             failureType: ModelTamperFailureType.substitution,
             reason: 'Model hash changed unexpectedly',
-            details: 'Known hash: $knownHash, New hash: $expectedHash',
+            details: 'Known hash: $knownHash, New hash: $variantHash',
           );
         }
       }
@@ -126,10 +126,10 @@ class ModelTamperProtection {
     _knownVersions[modelId] = ModelVersionInfo(
       modelId: modelId,
       version: variant.version,
-      hash: expectedHash,
+      hash: variantHash,
       verifiedAt: DateTime.now(),
     );
-    _knownHashes[modelId] = expectedHash;
+    _knownHashes[modelId] = variantHash;
 
     _logEvent(SecurityEventType.modelVerificationSuccess,
         modelId: modelId,
@@ -137,8 +137,9 @@ class ModelTamperProtection {
 
     return ModelTamperResult.passed(
       modelId,
+      reason: 'All tamper checks passed',
       score: hashResult.score,
-      hash: expectedHash,
+      hash: variantHash,
       version: variant.version,
     );
   }
@@ -342,6 +343,7 @@ class ModelTamperProtection {
       version: version,
       hash: hash,
       source: source,
+      verifiedAt: DateTime.now(),
       registeredAt: DateTime.now(),
     );
     _knownHashes[modelId] = hash;
@@ -376,7 +378,7 @@ class ModelTamperProtection {
       modelId,
       version: version.version,
       hash: version.hash,
-      registeredAt: version.registeredAt,
+      registeredAt: version.registeredAt ?? version.verifiedAt,
     );
   }
 

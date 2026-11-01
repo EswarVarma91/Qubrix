@@ -1,16 +1,14 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/firebase_remote_config.dart';
 import '../../core/utils/router.dart';
 import '../../data/repositories/ai_repository.dart';
-import '../../core/bindings/app_bindings.dart';
 
 /// Home controller - HuggingFace URL from SDK's Firebase Remote Config
 /// Background task - user just taps download, no model selection UI
 class HomeController extends GetxController {
-  final AdaptiveAgentEngine _engine = Get.find<AdaptiveAgentEngine>();
   final AiRepository _repository = Get.find<AiRepository>();
   final FirebaseRemoteConfigService _modelConfig = Get.find<FirebaseRemoteConfigService>();
 
@@ -29,6 +27,7 @@ class HomeController extends GetxController {
   final _usingFirebase = false.obs;
   final _lastFirebaseFetchTime = Rxn<DateTime>();
   final _huggingFaceUrl = ''.obs;
+  final List<HuggingFaceModel> _customModels = [];
 
   // Getters
   String get status => _status.value;
@@ -52,7 +51,7 @@ class HomeController extends GetxController {
   }
 
   void _checkSecurityStatus() {
-    final tamperDetector = TamperDetector();
+    final tamperDetector = TamperDetector(SecurityConfig());
     _securityStatus.value = tamperDetector.isSdkIntegrityVerified
         ? 'Security: Protected'
         : 'Security: Compromised!';
@@ -61,7 +60,7 @@ class HomeController extends GetxController {
   }
 
   Future<void> refreshSecurityStatus() async {
-    final tamperDetector = TamperDetector();
+    final tamperDetector = TamperDetector(SecurityConfig());
     final status = await tamperDetector.verifySdkIntegrity();
     _securityStatus.value = status.ok ? 'Security: Protected' : 'Security: Compromised!';
     _tamperWarning.value = !status.ok;
@@ -87,7 +86,7 @@ class HomeController extends GetxController {
 
     // No model installed - fetch HuggingFace URL from SDK's Firebase
     final huggingFaceUrl = await _modelConfig.getHuggingFaceUrl();
-    final repoId = _modelConfig.getRepoIdFromUrl(huggingFaceUrl);
+    final repoId = await _modelConfig.getRepoIdFromUrl(huggingFaceUrl);
 
     if (repoId == null || repoId.isEmpty) {
       _setStatus('Invalid HuggingFace URL from Firebase: $huggingFaceUrl');
@@ -120,7 +119,7 @@ class HomeController extends GetxController {
 
       if (result.success) {
         _updateModelStatus();
-        _setStatus('${AppStrings.modelReady} (${(result.bytesDownloaded ?? 0)} bytes)');
+        _setStatus('${AppStrings.modelReady} (${result.bytesDownloaded} bytes)');
       } else {
         _setStatus('${AppStrings.taskFailed}: ${result.errorMessage}');
       }
@@ -247,6 +246,39 @@ class HomeController extends GetxController {
 
   void showStorageInfo() => showSnackbar('Storage info: models=${installedModelsCount}', isSuccessful: true);
 
+  /// Refresh the HuggingFace model URL from Firebase Remote Config.
+  Future<void> refreshRemoteConfig() async {
+    _isLoading.value = true;
+    try {
+      final url = await _modelConfig.getHuggingFaceUrl();
+      _huggingFaceUrl.value = url;
+      _lastFirebaseFetchTime.value = DateTime.now();
+      _setStatus('Remote Config refreshed: $url');
+    } catch (e) {
+      _setStatus('Error refreshing Remote Config: $e');
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  /// Show the models that are currently installed.
+  void showModelPickerDialog() {
+    final installed = _repository.getInstalledModels();
+    showSnackbar(
+      installed.isEmpty
+          ? 'No models installed. Download the Firebase-configured model first.'
+          : 'Installed: ${installed.map((m) => m.displayName).join(', ')}',
+    );
+  }
+
+  /// Register a custom HuggingFace model with the example app.
+  void addCustomModel(HuggingFaceModel model) {
+    _customModels.add(model);
+    _updateModelStatus();
+    _setStatus('Custom model added: ${model.displayName}');
+    showSnackbar('Added ${model.displayName}');
+  }
+
   void showSnackbar(String message, {bool isSuccessful = true}) {
     Get.snackbar(
       'AI SDK',
@@ -269,9 +301,6 @@ class HomeController extends GetxController {
       (m) => _repository.isModelLoaded(m.id),
     );
   }
-
-  /// Extract HuggingFace repo ID from URL
-  String _extractRepoIdFromUrl(String url) => _modelConfig.getRepoIdFromUrl(url) ?? '';
 
   @override
   void onClose() {

@@ -286,9 +286,8 @@ class InputSchema {
   factory InputSchema.fromJson(Map<String, dynamic> json) {
     return InputSchema(
       fields: (json['fields'] as Map<String, dynamic>?)
-              ?.map((k, v) =>
-                  MapEntry(k, SchemaField.fromJson(v as Map<String, dynamic>)))
-              .toList() ??
+              ?.map((k, v) => MapEntry(
+                  k, SchemaField.fromJson(v as Map<String, dynamic>))) ??
           {},
       example: json['example'] as String?,
     );
@@ -526,14 +525,13 @@ class ActionRegistry {
     Map<String, dynamic> parameters, {
     String? idempotencyKey,
   }) {
-    final handler = _handlers[actionId];
-    if (handler == null) {
-      throw Exception('No handler registered for action: $actionId');
+    final action = _actions[actionId];
+    if (action == null) {
+      throw Exception('Action not registered: $actionId');
     }
 
     // Validate parameters
-    final action = _actions[actionId];
-    if (action != null && action.inputSchema != null) {
+    if (action.inputSchema != null) {
       final validation = action.inputSchema!.validate(parameters);
       if (!validation.isValid) {
         throw Exception('Invalid parameters: ${validation.errors.join(', ')}');
@@ -541,9 +539,15 @@ class ActionRegistry {
     }
 
     // Add idempotency key if applicable
-    if (action?.idempotencyKeyField != null && idempotencyKey != null) {
+    if (action.idempotencyKeyField != null && idempotencyKey != null) {
       parameters = Map<String, dynamic>.from(parameters);
-      parameters[action!.idempotencyKeyField!] = idempotencyKey;
+      parameters[action.idempotencyKeyField!] = idempotencyKey;
+    }
+
+    final handler = _handlers[actionId];
+    if (handler == null) {
+      // Actions without a handler are declarative: echo the validated input.
+      return Map<String, dynamic>.from(parameters);
     }
 
     return handler(parameters);

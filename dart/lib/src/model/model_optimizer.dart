@@ -3,10 +3,9 @@
 /// Finds the smallest model that meets task requirements.
 /// Selects models based on measured task performance, not just parameter count.
 
-import 'package:flutter/foundation.dart';
+import '../core/types.dart';
 import 'model_types.dart';
 import 'model_catalog.dart';
-import 'compatibility_engine.dart';
 
 /// Model candidate for a task
 class ModelCandidate {
@@ -404,7 +403,7 @@ class ModelOptimizer {
 
     for (final candidate in candidates) {
       // Check if we have cached evaluation
-      final cacheKey = '${candidate.model.id}_${candidate.quantizationFormat.name}_${taskRequirements.taskType?.name}';
+      final cacheKey = '${candidate.model.id}_${candidate.quantizationFormat.name}_${taskRequirements.relevantTaskTypes.map((t) => t.name).join('-')}';
       if (_evaluationCache.containsKey(cacheKey)) {
         final cached = _evaluationCache[cacheKey]!.firstWhere(
           (c) => c.model.id == candidate.model.id,
@@ -472,7 +471,7 @@ class ModelOptimizer {
     adjustedQuality = adjustedQuality.clamp(0.0, 1.0);
 
     // Calculate failure rate (inversely related to quality)
-    final failureRate = ((1.0 - adjustedQuality) * 100).toInt();
+    final failureRate = (1.0 - adjustedQuality) * 100;
 
     return EvaluatedCandidate(
       model: candidate.model,

@@ -1,4 +1,4 @@
-import '../../core/security/security_config.dart';
+import 'security_config.dart';
 
 /// Ensures complete data isolation between customers/users
 /// 
@@ -211,7 +211,7 @@ Tracking Customers: ${_accessHistory.length}
 Isolation Enabled: ${config.enabled}
 
 Customer Access Summary:
-${_accessHistory.entries.map((e) => '  $customerId: ${e.value.length} accesses').join('\n')}
+${_accessHistory.entries.map((e) => '  ${e.key}: ${e.value.length} accesses').join('\n')}
 ''';
   }
 }

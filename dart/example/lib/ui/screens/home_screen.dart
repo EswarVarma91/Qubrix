@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/constants/app_strings.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/model_catalog.dart';
-import '../../core/theme/app_theme.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/action_grid.dart';
 import '../widgets/model_progress_indicator.dart';
 import '../widgets/status_card.dart';
-import '../widgets/adaptive_button.dart';
 
 /// Home screen with reactive GetX state management
 class HomeScreen extends GetView<HomeController> {
@@ -48,7 +44,7 @@ class HomeScreen extends GetView<HomeController> {
                     title: AppStrings.home,
                     status: controller.status,
                     isLoading: controller.isLoading,
-                    icon: Icons.ai,
+                    icon: Icons.auto_awesome,
                     subtitle: _getStatusSubtitle(),
                   ),
 
@@ -58,7 +54,7 @@ class HomeScreen extends GetView<HomeController> {
                   Obx(() {
                     if (controller.tamperWarning) {
                       return Card(
-                        color: AppColors.error.withValue(0.1),
+                        color: AppColors.error.withValues(alpha: 0.1),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(
@@ -100,7 +96,7 @@ class HomeScreen extends GetView<HomeController> {
                       );
                     }
                     return Card(
-                      color: AppColors.success.withValue(0.1),
+                      color: AppColors.success.withValues(alpha: 0.1),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
@@ -221,7 +217,9 @@ class HomeScreen extends GetView<HomeController> {
 
                   const SizedBox(height: 32),
                 ],
-              ),              ),
+              ),
+            ),
+          );
         }),
       ),
     );
@@ -295,7 +293,7 @@ class HomeScreen extends GetView<HomeController> {
                 ),
                 OutlinedButton.icon(
                   onPressed: controller.unloadModel,
-                  icon: const Icon(Icons.unload, size: 18),
+                  icon: const Icon(Icons.eject, size: 18),
                   label: const Text('Unload'),
                 ),
               ],

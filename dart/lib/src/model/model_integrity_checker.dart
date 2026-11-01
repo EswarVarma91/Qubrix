@@ -1,6 +1,6 @@
 import 'dart:io';
 import '../core/security/integrity_verifier.dart';
-import '../security/security_config.dart';
+import '../core/security/security_config.dart';
 import 'model_types.dart';
 
 /// Handles model integrity checks when models change or are re-downloaded

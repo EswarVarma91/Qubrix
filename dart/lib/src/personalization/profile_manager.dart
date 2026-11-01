@@ -3,9 +3,7 @@
 /// Stores and manages user profile data including preferences and routines.
 /// Layer 1 & 2 of the personalization system.
 
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'activity_event.dart';
 
 /// User profile containing learned preferences and patterns
 @immutable
@@ -642,10 +640,11 @@ class FeatureUsageStats {
   /// Get most active hour
   int? get mostActiveHour {
     if (usageByHour.isEmpty) return null;
-    return usageByHour.entries
-        .reduce((a, b) => a.value > b.value ? a : b)
-        .key
-        .toInt();
+    return int.tryParse(
+      usageByHour.entries
+          .reduce((a, b) => a.value > b.value ? a : b)
+          .key,
+    );
   }
 
   /// Create a copy with modified fields

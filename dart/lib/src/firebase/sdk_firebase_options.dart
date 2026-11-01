@@ -95,8 +95,6 @@ class SdkFirebaseOptions {
           projectId: androidProjectId,
           databaseURL: 'https://${androidProjectId}.firebaseio.com',
           storageBucket: '${androidProjectId}.appspot.com',
-          messagingClusterId: null,
-          isRunningOnChromeOS: false,
           deepLinkURLScheme: null,
         );
       case TargetPlatform.iOS:
@@ -107,7 +105,6 @@ class SdkFirebaseOptions {
           projectId: androidProjectId,
           databaseURL: 'https://${androidProjectId}.firebaseio.com',
           storageBucket: '${androidProjectId}.appspot.com',
-          messagingSenderId: messagingSenderId,
         );
       default:
         throw UnsupportedError(

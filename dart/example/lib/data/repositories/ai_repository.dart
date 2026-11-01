@@ -19,13 +19,11 @@ class AiRepository {
 
   Future<ModelDownloadResult> downloadModel(
     String modelId, {
-    ModelVariant? preferredVariant,
     void Function(ModelProgress)? onProgress,
     void Function(ModelProgress)? onLoadProgress,
   }) async {
     return _engine.downloadModel(
       modelId,
-      preferredVariant: preferredVariant,
       onProgress: onProgress,
       onLoadProgress: onLoadProgress,
     );
@@ -43,7 +41,7 @@ class AiRepository {
   }
 
   // Health check
-  Future<HealthStatus> checkHealth() async {
+  Future<EngineHealth> checkHealth() async {
     return _engine.checkHealth();
   }
 
@@ -66,7 +64,22 @@ class AiRepository {
     required PermissionLevel level,
     String? reason,
   }) async {
-    return _engine.requestPermission(actionId, level: level, reason: reason);
+    return _engine.requestPermission(
+      actionId: actionId,
+      level: level,
+      reason: reason,
+    );
+  }
+
+  /// Get a personalized recommendation from the SDK.
+  Future<Recommendation?> getRecommendation({
+    required String contextType,
+    Map<String, dynamic>? contextData,
+  }) {
+    return _engine.getRecommendation(
+      contextType: contextType,
+      contextData: contextData,
+    );
   }
 
   bool hasPermission(String actionId, PermissionLevel level) =>

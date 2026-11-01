@@ -3,11 +3,9 @@
 /// Learns permitted routines and preferences from user interactions.
 /// Layer 2 of the personalization system - pattern detection and preference learning.
 
-import 'dart:collection';
-import 'package:flutter/foundation.dart';
 import 'activity_event.dart';
 import 'profile_manager.dart';
-import '../../core/types.dart' show TaskType;
+import '../core/types.dart' show HealthStatus, PrivacyMode, TaskType;
 
 /// Personalization engine that learns from user activity
 class PersonalizationEngine {
@@ -17,9 +15,6 @@ class PersonalizationEngine {
   // Activity buffer for pattern detection
   final List<ActivityEvent> _recentActivity = [];
   final int _maxRecentActivity;
-
-  // Pattern detection state
-  final Map<String, PatternState> _patternStates = {};
 
   // Debouncing for pattern updates
   DateTime? _lastPatternUpdate;
@@ -176,7 +171,8 @@ class PersonalizationEngine {
         final existing = existingRoutines[key]!;
         existingRoutines[key] = existing.copyWith(
           frequency: existing.frequency + 1,
-          confidence: (existing.confidence * 0.9 + seq['confidence'] as double * 0.1)
+          confidence: (existing.confidence * 0.9 +
+                  (seq['confidence'] as double) * 0.1)
               .clamp(0, 1),
           lastObserved: DateTime.now(),
           status: RoutineStatus.observed,
@@ -213,6 +209,24 @@ class PersonalizationEngine {
           status: RoutineStatus.observed,
         );
       }
+    }
+
+    // Add feature usage patterns
+    for (final pattern in usagePatterns) {
+      final key = pattern['key'] as String;
+      existingRoutines.putIfAbsent(
+        key,
+        () => DetectedRoutine(
+          routineId: key,
+          name: pattern['name'] as String,
+          description: pattern['description'] as String?,
+          steps: (pattern['steps'] as List<RoutineStep>?) ?? const [],
+          frequency: pattern['frequency'] as int,
+          confidence: pattern['confidence'] as double,
+          detectedAt: DateTime.now(),
+          status: RoutineStatus.observed,
+        ),
+      );
     }
 
     // Limit number of routines
@@ -322,7 +336,7 @@ class PersonalizationEngine {
 
           patterns.add({
             'key': 'time_${entry.key.hashCode}',
-            'name': 'Active during $entry key',
+            'name': 'Active during ${entry.key}',
             'description': 'You are frequently active during this time period',
             'steps': topFeatures.take(3).map((f) {
               return RoutineStep(
@@ -471,14 +485,13 @@ class PersonalizationEngine {
           ? HealthStatus.degraded
           : HealthStatus.healthy;
     } catch (e) {
-      return HealthStatus.unhealthy;
+      return HealthStatus.unhealthy('Personalization engine failure');
     }
   }
 
   /// Dispose resources
   Future<void> dispose() async {
     _recentActivity.clear();
-    _patternStates.clear();
   }
 
   /// Get recent activity count
@@ -489,6 +502,4 @@ class PersonalizationEngine {
     _recentActivity.clear();
   }
 
-  /// Get privacy mode
-  PrivacyMode get privacyMode => privacyMode;
 }

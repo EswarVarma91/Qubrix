@@ -18,6 +18,8 @@ class AppStrings {
   static const String home = 'Home';
   static const String models = 'Models';
   static const String settings = 'Settings';
+  static const String about = 'About';
+  static const String clearPersonalizationData = 'Clear Personalization Data';
 
   // Actions
   static const String downloadModel = 'Download Model';
@@ -41,6 +43,7 @@ class AppStrings {
   static const String downloading = 'Downloading';
   static const String verifying = 'Verifying';
   static const String loadingText2 = 'Loading';
+  static const String loading = 'Loading';
   static const String initializing = 'Initializing';
   static const String modelInstalled = 'Model installed';
   static const String modelLoaded = 'Model loaded in memory';

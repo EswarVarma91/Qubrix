@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
-import '../security/security_config.dart';
+import 'security_config.dart';
 import 'data_protector.dart';
-import 'customer_data_protector.dart';
 
 /// Secure deletion of files and data
 /// 
@@ -245,7 +244,7 @@ class SecureDeleteManager {
   Future<void> _overwriteFile(
     String filePath,
     int length,
-    {required String pattern},
+    {required String pattern}
   ) async {
     final file = File(filePath);
     final raf = await file.open(mode: FileMode.write);
@@ -261,7 +260,7 @@ class SecureDeleteManager {
           remaining < chunkSize ? remaining : chunkSize,
         );
         
-        await raf.seek(position);
+        await raf.setPosition(position);
         await raf.writeFrom(chunk);
         
         position += chunk.length;
@@ -391,11 +390,11 @@ Security Enabled: ${config.enabled}
 class SecureDeleteResult {
   final String customerId;
   final DateTime startedAt;
-  final DateTime? completedAt;
+  DateTime? completedAt;
   final List<String> filesDeleted;
   final List<String> filesFailed;
-  final List<String> errors = [];
-  final bool keysWiped;
+  final List<String> errors;
+  bool keysWiped;
   bool wipedKeys;
 
   SecureDeleteResult({
@@ -404,9 +403,10 @@ class SecureDeleteResult {
     this.completedAt,
     required this.filesDeleted,
     required this.filesFailed,
+    List<String>? errors,
     this.keysWiped = false,
-    this.errors = const [],
-  }) : wipedKeys = keysWiped;
+  })  : errors = errors ?? [],
+        wipedKeys = keysWiped;
 
   /// Calculate duration
   Duration? get duration {

@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:math';
 import 'package:encrypt/encrypt.dart' as encrypt;
-import '../security/security_config.dart';
+import 'security_config.dart';
 import '../security/data_protector.dart';
 
 /// Protects customer data with strong encryption using device-bound keys
@@ -369,7 +368,7 @@ class CustomerDataProtector {
       return _EncryptedResult(
         ciphertext: encrypted.base64,
         iv: iv.base64,
-        authTag: encrypted.aad?.base64 ?? '', // GCM appends tag to ciphertext
+        authTag: '', // GCM appends the authentication tag to the ciphertext
       );
     } catch (e) {
       throw EncryptionException(
@@ -401,10 +400,7 @@ class CustomerDataProtector {
         encrypt.AES(key, mode: encrypt.AESMode.gcm),
       );
 
-      final encrypted = encrypt.Encrypted(
-        ciphertextBytes,
-        iv: encrypt.IV(ivBytes),
-      );
+      final encrypted = encrypt.Encrypted(Uint8List.fromList(ciphertextBytes));
 
       // GCM decrypt verifies auth tag automatically
       final decrypted = encrypter.decrypt(encrypted, iv: encrypt.IV(ivBytes));

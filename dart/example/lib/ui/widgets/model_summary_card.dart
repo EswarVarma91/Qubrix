@@ -20,7 +20,7 @@ class ModelSummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
     
     return Card(
-      color: AppColors.primary.withValue(0.05),
+      color: AppColors.primary.withValues(alpha: 0.05),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -86,7 +86,7 @@ class ModelSummaryCard extends StatelessWidget {
                 if (onFreeMemory != null)
                   OutlinedButton.icon(
                     onPressed: onFreeMemory,
-                    icon: const Icon(Icons.unload, size: 18),
+                    icon: const Icon(Icons.eject, size: 18),
                     label: const Text('Unload'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.warning,

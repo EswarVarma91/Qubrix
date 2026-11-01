@@ -1,6 +1,7 @@
 name: ai_sdk_example
 description: Example app demonstrating the AI SDK
 version: 1.0.0
+publish_to: none
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

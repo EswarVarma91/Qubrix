@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
-import '../security/security_config.dart';
+import 'security_config.dart';
 
 /// Verifies integrity of downloaded models to prevent tampering
 /// Uses SHA-256 hashing and signature verification concepts

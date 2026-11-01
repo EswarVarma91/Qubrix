@@ -1,4 +1,4 @@
-import '../security/security_config.dart';
+import 'security_config.dart';
 
 /// Detects tampering with SDK components, model files, or app data
 /// 
@@ -154,7 +154,7 @@ class TamperDetector {
     if (hour < 5 || hour > 23) {
       if (accessCount > 10) {
         _logEvent(SecurityEventType.tamperDetected,
-            details: 'Unusual access time: ${DateTime.now()}`);
+            details: 'Unusual access time: ${DateTime.now()}');
         return true;
       }
     }

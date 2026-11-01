@@ -5,8 +5,8 @@
 
 import 'package:flutter/foundation.dart';
 import 'personalization_engine.dart';
-import 'action_registry.dart';
-import '../../core/types.dart';
+import 'profile_manager.dart';
+import '../automation/action_registry.dart';
 
 /// Recommendation configuration
 class RecommendationConfig {
@@ -93,7 +93,7 @@ class Recommendation {
   /// Category for grouping
   final String? category;
 
-  const Recommendation({
+  Recommendation({
     required this.id,
     required this.type,
     required this.title,
@@ -103,14 +103,14 @@ class Recommendation {
     required this.confidence,
     this.reasons = const [],
     this.context,
-    required this.generatedAt,
+    DateTime? generatedAt,
     this.timesShown = 0,
     this.timesAccepted = 0,
     this.timesDismissed = 0,
     this.isActive = true,
     this.suggestedAction,
     this.category,
-  });
+  }) : generatedAt = generatedAt ?? DateTime.now();
 
   /// Acceptance rate
   double get acceptanceRate =>
@@ -121,13 +121,70 @@ class Recommendation {
       timesShown > 0 ? timesDismissed / timesShown : 0;
 
   /// Net score (acceptance - dismissal)
-  double get netScore => acceptanceRate - dismissalRate;
+  double get netScore =>
+      timesShown > 0 ? (timesAccepted - timesDismissed) / timesShown : 0;
 
   /// Check if this recommendation should be shown again
   bool get canBeReshown {
     if (!isActive) return false;
     if (timesDismissed > timesShown * 0.7) return false; // Too many dismissals
     return true;
+  }
+
+  /// Suggest reordering a product based on a routine.
+  static Recommendation reorderSuggestion({
+    required String productId,
+    required String productName,
+    required int typicalQuantity,
+    String? scheduledTime,
+  }) {
+    return Recommendation(
+      id: 'reorder_$productId',
+      type: RecommendationType.routineBased,
+      title: 'Time to reorder $productName?',
+      description:
+          'You usually reorder this product. Would you like to add it to your cart?',
+      actionId: 'add_to_cart',
+      actionParameters: {
+        'productId': productId,
+        'quantity': typicalQuantity,
+      },
+      confidence: 0.8,
+      reasons: [
+        'Based on your reordering pattern',
+        'Typical quantity: $typicalQuantity',
+        if (scheduledTime != null) 'Scheduled for: $scheduledTime',
+      ],
+      category: 'shopping',
+      suggestedAction: 'Add to cart',
+    );
+  }
+
+  /// Suggest creating a shortcut for a repeated workflow.
+  static Recommendation shortcutSuggestion({
+    required String workflowName,
+    required List<String> actionIds,
+    required int frequency,
+  }) {
+    return Recommendation(
+      id: 'shortcut_$workflowName',
+      type: RecommendationType.automation,
+      title: 'Create a shortcut for "$workflowName"?',
+      description:
+          'You perform this workflow frequently. A shortcut can save time.',
+      actionId: 'create_shortcut',
+      actionParameters: {
+        'workflowName': workflowName,
+        'actionIds': actionIds,
+      },
+      confidence: (frequency / 10).clamp(0.5, 0.95),
+      reasons: [
+        'Performed $frequency times',
+        'Can save time on repeated actions',
+      ],
+      category: 'automation',
+      suggestedAction: 'Create shortcut',
+    );
   }
 
   /// Create a copy with modified fields
@@ -331,7 +388,7 @@ class RecommendationEngine {
 
   /// Generate recommendations based on detected routines
   List<Recommendation> _generateRoutineBasedRecommendations(
-    dynamic profile,
+    UserProfile profile,
   ) {
     final recommendations = <Recommendation>[];
 
@@ -428,7 +485,7 @@ class RecommendationEngine {
 
   /// Generate recommendations based on feature usage
   List<Recommendation> _generateFeatureBasedRecommendations(
-    dynamic profile,
+    UserProfile profile,
   ) {
     final recommendations = <Recommendation>[];
 

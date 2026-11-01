@@ -4,6 +4,7 @@
 /// Layer 1 of the personalization system.
 
 import 'package:flutter/foundation.dart';
+import '../core/types.dart';
 
 /// Types of activity events that can be recorded
 enum ActivityEventType {
@@ -107,7 +108,8 @@ class ActivityEvent {
   /// Privacy classification
   final PrivacyLevel privacyLevel;
 
-  const ActivityEvent({
+  ActivityEvent({
+    String? eventId,
     required this.eventType,
     this.taskType,
     this.taskId,
@@ -119,7 +121,7 @@ class ActivityEvent {
     this.metadata = const {},
     this.priority = ActivityPriority.normal,
     this.privacyLevel = PrivacyLevel.local,
-  }) : eventId = _generateId(),
+  }) : eventId = eventId ?? _generateId(),
        timestamp = timestamp ?? DateTime.now();
 
   /// Generate unique event ID
@@ -127,11 +129,100 @@ class ActivityEvent {
     return '${DateTime.now().millisecondsSinceEpoch}_${_randomString(8)}';
   }
 
+  static int _idCounter = 0;
+
   static String _randomString(int length) {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    final random = DateTime.now().microsecondsSinceEpoch;
+    final seed = DateTime.now().microsecondsSinceEpoch + _idCounter++;
     return String.fromCharCodes(
-      List.generate(length, (i) => chars.codeUnitAt(random % chars.length + i)),
+      List.generate(
+        length,
+        (i) => chars.codeUnitAt((seed + i) % chars.length),
+      ),
+    );
+  }
+
+  /// Create a task execution event.
+  factory ActivityEvent.taskExecuted({
+    required String taskId,
+    required TaskType taskType,
+    required bool success,
+    int durationMs = 0,
+    Map<String, dynamic>? context,
+  }) {
+    return ActivityEvent(
+      eventType: ActivityEventType.taskExecution,
+      taskId: taskId,
+      taskType: taskType,
+      success: success,
+      durationMs: durationMs,
+      context: context ?? const {},
+    );
+  }
+
+  /// Create a feature usage event.
+  factory ActivityEvent.featureUsed({
+    required String featureName,
+    required String featureId,
+    Map<String, dynamic>? context,
+  }) {
+    return ActivityEvent(
+      eventType: ActivityEventType.featureUsage,
+      actionId: featureId,
+      context: {
+        'featureName': featureName,
+        ...?context,
+      },
+    );
+  }
+
+  /// Create a suggestion accepted event.
+  factory ActivityEvent.suggestionAccepted({
+    required String suggestionId,
+    required String suggestionType,
+    Map<String, dynamic>? context,
+  }) {
+    return ActivityEvent(
+      eventType: ActivityEventType.suggestionAccepted,
+      actionId: suggestionId,
+      context: {
+        'suggestionType': suggestionType,
+        ...?context,
+      },
+      priority: ActivityPriority.high,
+    );
+  }
+
+  /// Create a suggestion dismissed event.
+  factory ActivityEvent.suggestionDismissed({
+    required String suggestionId,
+    String? dismissalReason,
+    Map<String, dynamic>? context,
+  }) {
+    return ActivityEvent(
+      eventType: ActivityEventType.suggestionDismissed,
+      actionId: suggestionId,
+      context: {
+        'dismissalReason': dismissalReason,
+        ...?context,
+      },
+    );
+  }
+
+  /// Create a workflow completion event.
+  factory ActivityEvent.workflowCompleted({
+    required String workflowId,
+    required bool success,
+    int durationMs = 0,
+    Map<String, dynamic>? context,
+  }) {
+    return ActivityEvent(
+      eventType: ActivityEventType.workflowCompletion,
+      taskId: workflowId,
+      success: success,
+      durationMs: durationMs,
+      context: context ?? const {},
+      priority: ActivityPriority.high,
     );
   }
 
@@ -272,91 +363,4 @@ enum PrivacyLevel {
 
   /// Highly sensitive - minimal retention
   sensitive,
-}
-
-/// Extension to add convenience methods to ActivityEvent
-extension ActivityEventExtensions on ActivityEvent {
-  /// Create a task execution event
-  static ActivityEvent taskExecuted({
-    required String taskId,
-    required TaskType taskType,
-    required bool success,
-    int durationMs = 0,
-    Map<String, dynamic>? context,
-  }) {
-    return ActivityEvent(
-      eventType: ActivityEventType.taskExecution,
-      taskId: taskId,
-      taskType: taskType,
-      success: success,
-      durationMs: durationMs,
-      context: context ?? {},
-    );
-  }
-
-  /// Create a feature usage event
-  static ActivityEvent featureUsed({
-    required String featureName,
-    required String featureId,
-    Map<String, dynamic>? context,
-  }) {
-    return ActivityEvent(
-      eventType: ActivityEventType.featureUsage,
-      actionId: featureId,
-      context: {
-        'featureName': featureName,
-        ...?context,
-      },
-    );
-  }
-
-  /// Create a suggestion accepted event
-  static ActivityEvent suggestionAccepted({
-    required String suggestionId,
-    required String suggestionType,
-    Map<String, dynamic>? context,
-  }) {
-    return ActivityEvent(
-      eventType: ActivityEventType.suggestionAccepted,
-      actionId: suggestionId,
-      context: {
-        'suggestionType': suggestionType,
-        ...?context,
-      },
-      priority: ActivityPriority.high,
-    );
-  }
-
-  /// Create a suggestion dismissed event
-  static ActivityEvent suggestionDismissed({
-    required String suggestionId,
-    String? dismissalReason,
-    Map<String, dynamic>? context,
-  }) {
-    return ActivityEvent(
-      eventType: ActivityEventType.suggestionDismissed,
-      actionId: suggestionId,
-      context: {
-        'dismissalReason': dismissalReason,
-        ...?context,
-      },
-    );
-  }
-
-  /// Create a workflow completion event
-  static ActivityEvent workflowCompleted({
-    required String workflowId,
-    required bool success,
-    int durationMs = 0,
-    Map<String, dynamic>? context,
-  }) {
-    return ActivityEvent(
-      eventType: ActivityEventType.workflowCompletion,
-      taskId: workflowId,
-      success: success,
-      durationMs: durationMs,
-      context: context ?? {},
-      priority: ActivityPriority.high,
-    );
-  }
 }

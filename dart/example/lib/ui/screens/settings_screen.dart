@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ai_sdk/ai_sdk.dart';
 import '../../core/constants/app_strings.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/model_catalog.dart';
 import '../../core/firebase_remote_config.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/security_badge.dart';
+import '../widgets/security_status_card.dart';
 import '../widgets/model_summary_card.dart';
 
 /// Comprehensive settings screen
@@ -315,10 +315,15 @@ class SettingsScreen extends GetView<HomeController> {
                 ? null
                 : () {
                     // Add custom model to the catalog
-                    final model = HuggingFaceModels.custom(
-                      repoId: repoIdController.text.trim(),
-                      displayName: displayNameController.text.trim() ||
-                          repoIdController.text.trim(),
+                    final repoId = repoIdController.text.trim();
+                    final displayName = displayNameController.text.trim();
+                    final model = HuggingFaceModel(
+                      repoId: repoId,
+                      displayName:
+                          displayName.isEmpty ? repoId : displayName,
+                      huggingFaceUrl: 'https://huggingface.co/$repoId',
+                      sizeMb: 0,
+                      description: 'Custom HuggingFace model',
                     );
                     Get.find<HomeController>().addCustomModel(model);
                     Navigator.of(dialogContext).pop();
@@ -394,10 +399,10 @@ class _SettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final iconColor = iconColor ?? theme.colorScheme.primary;
+    final effectiveIconColor = iconColor ?? theme.colorScheme.primary;
     
     return ListTile(
-      leading: Icon(icon, color: iconColor),
+      leading: Icon(icon, color: effectiveIconColor),
       title: Text(title),
       subtitle: Text(
         subtitle,

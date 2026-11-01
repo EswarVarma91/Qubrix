@@ -95,35 +95,36 @@ library ai_sdk;
 export 'package:flutter/foundation.dart' show kIsWeb;
 export 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 
-// Core engines
-// Main public API
-export 'src/agent/agent_engine.dart';
+// Core types (task types, device info, progress, health)
+export 'src/core/types.dart';
 
 // Task orchestration
 export 'src/task_orchestrator.dart';
 
-// Model management
-export 'src/model/model_manager.dart' hide ModelProgress, ModelOperationType, DownloadProgress;
-export 'src/model/model_catalog.dart';
-export 'src/model/model_types.dart' show HuggingFaceModel, ModelVariant, ModelDownloadResult, LoadedModel, ModelCompatibilityResult, Model;
+// Main public API
+export 'src/agent/agent_engine.dart';
 
-// Compatibility
-nexport 'src/model/compatibility_engine.dart';
+// Model management
+export 'src/model/model_manager.dart';
+export 'src/model/model_catalog.dart';
+export 'src/model/model_types.dart';
+export 'src/model/compatibility_engine.dart';
 export 'src/model/model_optimizer.dart';
+export 'src/model/model_integrity_checker.dart';
 
 // Personalization
+export 'src/personalization/activity_event.dart';
 export 'src/personalization/personalization_engine.dart';
 export 'src/personalization/recommendation_engine.dart';
 export 'src/personalization/profile_manager.dart';
 
 // Automation
-export 'src/automation/automation_engine.dart';
+export 'src/automation/action_registry.dart';
 export 'src/automation/permission_manager.dart';
-
-// Core types
-export 'src/core/types.dart' hide ModelOperationType, ModelProgress, DownloadProgress;
+export 'src/automation/automation_engine.dart';
 
 // Security
+export 'src/model/permissions.dart' show SecurityPermissionLevel;
 export 'src/core/security/security_config.dart';
 export 'src/core/security/permission_guard.dart';
 export 'src/core/security/tamper_detector.dart';

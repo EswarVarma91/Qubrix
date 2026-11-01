@@ -1,5 +1,5 @@
-import '../model/permissions.dart';
-import '../security/security_config.dart';
+import '../../model/permissions.dart';
+import 'security_config.dart';
 
 /// Guard that enforces security policies for actions
 /// Prevents unauthorized actions and protects against misuse
@@ -22,7 +22,7 @@ class PermissionGuard {
   PermissionCheckResult checkAction({
     required String actionId,
     required String category,
-    required PermissionLevel requiredLevel,
+    required SecurityPermissionLevel requiredLevel,
     bool isSensitive = false,
     Map<String, dynamic>? userPermissions,
   }) {
@@ -91,7 +91,7 @@ class PermissionGuard {
   bool _userHasPermission(
     Map<String, dynamic>? userPermissions,
     String actionId,
-    PermissionLevel requiredLevel,
+    SecurityPermissionLevel requiredLevel,
   ) {
     if (userPermissions == null) {
       // No permissions specified - allow for demo
@@ -101,9 +101,9 @@ class PermissionGuard {
     // Check explicit action permission
     final explicitPermission = userPermissions[actionId];
     if (explicitPermission != null) {
-      final level = PermissionLevel.values.firstWhere(
+      final level = SecurityPermissionLevel.values.firstWhere(
         (l) => l.name == explicitPermission,
-        orElse: () => PermissionLevel.none,
+        orElse: () => SecurityPermissionLevel.none,
       );
       return level.index >= requiredLevel.index;
     }
@@ -117,7 +117,7 @@ class PermissionGuard {
   bool _roleHasPermission(
     String role,
     String actionId,
-    PermissionLevel requiredLevel,
+    SecurityPermissionLevel requiredLevel,
   ) {
     // Role-based permission matrix
     final rolePermissions = {
@@ -182,7 +182,7 @@ class PermissionCheckResult {
   final bool requiresConfirmation;
   final String? reason;
   final String? deniedBy;
-  final PermissionLevel? requiredLevel;
+  final SecurityPermissionLevel? requiredLevel;
   final String? confirmationRequiredFor;
   final String? details;
 
@@ -212,7 +212,7 @@ class PermissionCheckResult {
     String actionId, {
     required String reason,
     String? deniedBy,
-    PermissionLevel? requiredLevel,
+    SecurityPermissionLevel? requiredLevel,
   }) {
     return PermissionCheckResult._(
       actionId: actionId,

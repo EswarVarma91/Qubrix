@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get_it/get_it.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 
 import 'core/firebase_remote_config.dart';
 import 'core/bindings/app_bindings.dart';
 import 'core/utils/router.dart';
-import 'data/repositories/ai_repository.dart';
-import 'ui/controllers/home_controller.dart';
-import 'ui/screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

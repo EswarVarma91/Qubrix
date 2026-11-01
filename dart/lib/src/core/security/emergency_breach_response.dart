@@ -1,4 +1,4 @@
-import '../security/security_config.dart';
+import 'security_config.dart';
 import '../security/data_isolation.dart';
 
 /// Emergency response system for when a breach is detected
@@ -219,12 +219,8 @@ Type: ${breachType ?? 'Unknown'}
 Detected: ${detectedAt?.toIso8601String() ?? 'Unknown'}
 Affected Customer: ${affectedCustomerId ?? 'None'}
 Actions Taken: ${actionsTaken.length}
-${actionsTaken.map((a) => '  - $action: $status').join('\n')}
+${actionsTaken.map((a) => '  - $a').join('\n')}
 ''';
   }
 }
 
-extension on String {
-  String get action => this;
-  String get status => this;
-}

@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../../ui/screens/home_screen.dart';
 import '../../ui/screens/settings_screen.dart';
+import '../bindings/app_bindings.dart';
 
 /// GetX route definitions
 class AppRoutes {
@@ -17,7 +18,7 @@ class AppPages {
   static final pages = [
     GetPage(
       name: AppRoutes.home,
-      page: () => const AdaptiveHomePage(),
+      page: () => const HomeScreen(),
       binding: HomeBinding(),
     ),
     GetPage(

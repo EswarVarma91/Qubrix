@@ -4,131 +4,13 @@
 /// Manages the lifecycle of on-device AI models.
 
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../core/security/integrity_verifier.dart';
+import '../core/types.dart';
+import '../task_orchestrator.dart';
+import 'compatibility_engine.dart';
+import 'model_catalog.dart';
 import 'model_types.dart';
-
-/// Result of a model download operation
-@immutable
-class ModelDownloadResult {
-  final bool success;
-  final String? modelId;
-  final String? errorMessage;
-  final int? bytesDownloaded;
-  final int? totalBytes;
-  final Duration? duration;
-  final Model? model;
-
-  const ModelDownloadResult({
-    required this.success,
-    this.modelId,
-    this.errorMessage,
-    this.bytesDownloaded,
-    this.totalBytes,
-    this.duration,
-    this.model,
-  });
-
-  factory ModelDownloadResult.success({
-    required String modelId,
-    required Model model,
-    int? bytesDownloaded,
-    int? totalBytes,
-    Duration? duration,
-  }) {
-    return ModelDownloadResult(
-      success: true,
-      modelId: modelId,
-      model: model,
-      bytesDownloaded: bytesDownloaded,
-      totalBytes: totalBytes,
-      duration: duration,
-    );
-  }
-
-  factory ModelDownloadResult.failure(String errorMessage) {
-    return const ModelDownloadResult(
-      success: false,
-      errorMessage: errorMessage,
-    );
-  }
-}
-
-/// Progress information for model operations (download or load)
-@immutable
-class ModelProgress {
-  final String modelId;
-  final ModelOperationType operation;
-  final int progress;
-  final int total;
-  final double percent;
-  final String? status;
-  final String? detail;
-
-  const ModelProgress({
-    required this.modelId,
-    required this.operation,
-    required this.progress,
-    required this.total,
-    required this.percent,
-    this.status,
-    this.detail,
-  });
-
-  @override
-  String toString() =>
-      'ModelProgress($modelId: ${operation.name} ${percent.toStringAsFixed(1)}%)';
-}
-
-/// Types of model operations that can be in progress
-enum ModelOperationType {
-  /// Downloading model files
-  downloading,
-
-  /// Verifying downloaded files
-  verifying,
-
-  /// Loading model into memory
-  loading,
-
-  /// Initializing model for inference
-  initializing,
-}
-
-/// Download progress (legacy, kept for backward compatibility)
-@immutable
-class DownloadProgress {
-  final String modelId;
-  final int bytesDownloaded;
-  final int totalBytes;
-  final double percent;
-  final String? status;
-
-  const DownloadProgress({
-    required this.modelId,
-    required this.bytesDownloaded,
-    required this.totalBytes,
-    required this.percent,
-    this.status,
-  });
-
-  /// Convert to ModelProgress
-  ModelProgress toModelProgress() {
-    return ModelProgress(
-      modelId: modelId,
-      operation: ModelOperationType.downloading,
-      progress: bytesDownloaded,
-      total: totalBytes,
-      percent: percent,
-      status: status,
-    );
-  }
-
-  @override
-  String toString() =>
-      'DownloadProgress($modelId: ${percent.toStringAsFixed(1)}%)';
-}
 
 /// Download options
 class ModelDownloadOptions {
@@ -217,7 +99,7 @@ class ModelManager {
 
   /// Get the storage path for a specific model
   String getModelPath(String modelId, {QuantizationFormat? format}) {
-    final path = StringBuffer(_baseStoragePath);
+    final path = StringBuffer(_baseStoragePath ?? '');
     path.write('/$modelId');
     if (format != null) {
       path.write('/${format.name}');
@@ -243,19 +125,19 @@ class ModelManager {
     void Function(ModelProgress)? onLoadProgress,
   }) async {
     if (_installing.contains(modelId)) {
-      return const ModelDownloadResult.failure(
+      return ModelDownloadResult.failure(
         'Model is already being installed',
       );
     }
 
     final model = catalog.getModel(modelId);
     if (model == null) {
-      return const ModelDownloadResult.failure('Model not found in catalog');
+      return ModelDownloadResult.failure('Model not found in catalog');
     }
 
     // Check compatibility
     if (compatibilityEngine != null) {
-      final compatibility = compatibilityEngine!.checkModelCompatibility(
+      final compatibility = await compatibilityEngine!.checkModelCompatibility(
         model,
         deviceInfo,
         variant: preferredVariant,
@@ -276,7 +158,7 @@ class ModelManager {
     );
 
     if (variant == null) {
-      return const ModelDownloadResult.failure(
+      return ModelDownloadResult.failure(
         'No suitable variant found for this device',
       );
     }
@@ -297,7 +179,7 @@ class ModelManager {
         options?.customUrl,
         token,
         downloadProgress
-            ? (p) => onProgress!(p.toModelProgress())
+            ? (p) => onProgress(p)
             : null,
       );
 
@@ -306,7 +188,7 @@ class ModelManager {
         // Perform cryptographic integrity verification
         final verificationResult = await _integrityVerifier!.verifyModelIntegrity(
           modelId: modelId,
-          modelData: _downloadedData, // Would be actual downloaded bytes
+          modelData: const <int>[], // Simulated download: no bytes are persisted
           expectedHash: variant.checksum!,
         );
 
@@ -437,7 +319,7 @@ class ModelManager {
     final compatibleVariants = model.variants.where((v) {
       // Check quantization format compatibility
       if (preferredQuantization != null &&
-          !v.quantizationFormats.contains(preferredQuantization)) {
+          v.quantizationFormat != preferredQuantization) {
         return false;
       }
       // Check storage requirement
@@ -462,7 +344,7 @@ class ModelManager {
     ModelVariant variant,
     String? customUrl,
     CancelToken token,
-    void Function(DownloadProgress)? onProgress,
+    void Function(ModelProgress)? onProgress,
   ) async {
     // In a real implementation, this would:
     // 1. Download the model file from the URL
@@ -486,10 +368,11 @@ class ModelManager {
       await Future.delayed(const Duration(milliseconds: 50));
       downloaded = (totalBytes * (i + 1) / simulationSteps).toInt();
 
-      onProgress?.call(DownloadProgress(
+      onProgress?.call(ModelProgress(
         modelId: modelId,
-        bytesDownloaded: downloaded,
-        totalBytes: totalBytes,
+        operation: ModelOperationType.downloading,
+        progress: downloaded,
+        total: totalBytes,
         percent: downloaded / totalBytes,
         status: 'Downloading...',
       ));
@@ -537,17 +420,17 @@ class ModelManager {
     DeviceInfo deviceInfo, {
     ModelVariant? preferredVariant,
     ModelDownloadOptions? options,
-    void Function(DownloadProgress)? onProgress,
+    void Function(ModelProgress)? onProgress,
   }) async {
     final currentModel = catalog.getModel(modelId);
     if (currentModel == null) {
-      return const ModelDownloadResult.failure('Model not found');
+      return ModelDownloadResult.failure('Model not found');
     }
 
     // Check for updates in catalog
     final latest = catalog.getLatestVersion(modelId);
     if (latest == null || latest.version == currentModel.version) {
-      return const ModelDownloadResult.failure('Model is already up to date');
+      return ModelDownloadResult.failure('Model is already up to date');
     }
 
     // Remove old version
@@ -571,8 +454,7 @@ class ModelManager {
 
     try {
       // Remove files from storage
-      final path = getModelPath(modelId);
-      // In a real implementation: await Directory(path).delete(recursive: true);
+      // In a real implementation: await Directory(getModelPath(modelId)).delete(recursive: true);
 
       _installations.remove(modelId);
       return true;
@@ -706,7 +588,7 @@ class ModelManager {
       // In a real implementation, check if directory exists/is writable
       return HealthStatus.healthy;
     } catch (e) {
-      return HealthStatus.unhealthy;
+      return HealthStatus.unhealthy('Model storage is not accessible');
     }
   }
 
@@ -802,54 +684,4 @@ class ModelManagerConfig {
     required this.storageLocation,
     this.baseStoragePath,
   });
-}
-
-/// Model variant information
-@immutable
-class ModelVariant {
-  final String id;
-  final String name;
-  final QuantizationFormat quantizationFormat;
-  final int downloadSize;
-  final int memoryRequirement;
-  final double estimatedLatencyMs;
-  final double estimatedThroughput;
-  final bool supportsGpu;
-  final bool supportsNeuralEngine;
-  final String? downloadUrl;
-  final String? checksum;
-
-  const ModelVariant({
-    required this.id,
-    required this.name,
-    required this.quantizationFormat,
-    required this.downloadSize,
-    required this.memoryRequirement,
-    required this.estimatedLatencyMs,
-    required this.estimatedThroughput,
-    this.supportsGpu = false,
-    this.supportsNeuralEngine = false,
-    this.downloadUrl,
-    this.checksum,
-  });
-}
-
-/// Extend Model class with variants
-extension ModelWithVariants on Model {
-  List<ModelVariant> get variants {
-    // Generate variants based on quantization formats
-    return quantizationFormats.map((format) {
-      return ModelVariant(
-        id: '${id}_${format.name}',
-        name: '$name (${format.name})',
-        quantizationFormat: format,
-        downloadSize: downloadSizes[format] ?? smallestDownloadSize,
-        memoryRequirement: memoryRequirements[format] ?? smallestMemoryRequirement,
-        estimatedLatencyMs: format == QuantizationFormat.float32 ? 100.0 : 50.0,
-        estimatedThroughput: format == QuantizationFormat.float32 ? 10.0 : 20.0,
-        supportsGpu: false,
-        supportsNeuralEngine: false,
-      );
-    }).toList();
-  }
 }

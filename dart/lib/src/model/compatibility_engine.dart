@@ -5,6 +5,8 @@
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import '../core/types.dart';
+import 'model_catalog.dart';
 import 'model_types.dart';
 
 /// Compatibility check result
@@ -226,7 +228,7 @@ class CompatibilityEngine {
     Model model,
     DeviceInfo deviceInfo, {
     ModelVariant? variant,
-    QuantizationsFormat? preferredQuantization,
+    QuantizationFormat? preferredQuantization,
   }) async {
     final issues = <CompatibilityIssue>[];
     final suggestions = <String>[];
@@ -262,7 +264,10 @@ class CompatibilityEngine {
         preferredQuantization,
       );
       if (!quantCheck.isCompatible) {
-        issues.add(CompatibilityIssue.warning(quantCheck.reason));
+        issues.add(CompatibilityIssue.warning(
+          quantCheck.warning ??
+              'Quantization format is not fully supported on this device',
+        ));
         suggestions.add('Consider using a different quantization format');
       }
     }
@@ -270,7 +275,9 @@ class CompatibilityEngine {
     // Check license restrictions
     final licenseCheck = _checkLicenseCompatibility(model, deviceInfo);
     if (!licenseCheck.isCompatible) {
-      issues.add(CompatibilityIssue.warning(licenseCheck.reason));
+      issues.add(CompatibilityIssue.warning(
+        licenseCheck.reason ?? 'Model license is not compatible with this device',
+      ));
     }
 
     // Determine overall compatibility
@@ -357,7 +364,7 @@ class CompatibilityEngine {
     }
 
     // Device class check
-    if (!requirements.compatibleDeviceClasses.contains(deviceInfo.deviceClass)) {
+    if (!requirements.allowsDeviceClass(deviceInfo.deviceClass)) {
       notes.add('Device class ${deviceInfo.deviceClass.name} not in compatible list');
     }
 
@@ -401,18 +408,18 @@ class CompatibilityEngine {
   _QuantizationCheckResult _checkQuantizationSupport(
     Model model,
     DeviceInfo deviceInfo,
-    QuantizationsFormat preferred,
+    QuantizationFormat preferred,
   ) {
     if (!model.quantizationFormats.contains(preferred)) {
       return _QuantizationCheckResult(
         isCompatible: false,
-        reason: 'Model does not support ${preferred.name} quantization',
+        warning: 'Model does not support ${preferred.name} quantization',
       );
     }
 
     // Check device support for the format
     // Some formats may need specific hardware or runtime support
-    if (preferred == QuantizationsFormat.int4 &&
+    if (preferred == QuantizationFormat.int4 &&
         deviceInfo.deviceClass == DeviceClass.lowEnd) {
       return _QuantizationCheckResult(
         isCompatible: true,
@@ -421,7 +428,7 @@ class CompatibilityEngine {
     }
 
     // Check if neural engine can accelerate this format
-    if (preferred == QuantizationsFormat.int8 &&
+    if (preferred == QuantizationFormat.int8 &&
         deviceInfo.supportsNeuralEngine &&
         !model.hardwareRequirements.supportsNeuralEngine) {
       // The model doesn't claim neural engine support, but the device has one
@@ -508,10 +515,13 @@ class CompatibilityEngine {
     final deviceInfo = await getDeviceInfo();
 
     // Filter models that are compatible with this device
-    return catalog.models.where((model) {
-      final result = checkModelCompatibility(model, deviceInfo);
-      return result.isCompatible;
-    }).toList();
+    final catalog = ModelCatalog();
+    final compatible = <Model>[];
+    for (final model in catalog.models) {
+      final result = await checkModelCompatibility(model, deviceInfo);
+      if (result.isCompatible) compatible.add(model);
+    }
+    return compatible;
   }
 
 }
@@ -536,7 +546,7 @@ class _OSCheckResult {
   final bool isCompatible;
   final String? reason;
 
-  _OSCheckResult({required this.isCompatible, this.reason});
+  const _OSCheckResult({required this.isCompatible, this.reason});
 }
 
 /// Results of quantization check
@@ -545,7 +555,7 @@ class _QuantizationCheckResult {
   final String? warning;
   final String? optimization;
 
-  _QuantizationCheckResult({
+  const _QuantizationCheckResult({
     required this.isCompatible,
     this.warning,
     this.optimization,
@@ -559,7 +569,7 @@ class _LicenseCheckResult {
   final bool attributionRequired;
   final String? attributionInfo;
 
-  _LicenseCheckResult({
+  const _LicenseCheckResult({
     required this.isCompatible,
     this.reason,
     this.attributionRequired = false,

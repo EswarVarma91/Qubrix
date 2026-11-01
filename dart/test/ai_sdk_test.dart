@@ -475,6 +475,7 @@ void main() {
     late RecommendationEngine engine;
     late ActionRegistry actionRegistry;
     late PersonalizationEngine personalizationEngine;
+    late ProfileManager profileManager;
 
     setUp(() {
       actionRegistry = ActionRegistry();
@@ -512,7 +513,7 @@ void main() {
         contextData: {'hour': 9},
       );
       // May return null if no patterns detected
-      expect(recommendation == null || recommendation is Recommendation, isTrue);
+      expect(recommendation, anyOf(isNull, isA<Recommendation>()));
     });
 
     test('Recommendation types', () {
@@ -708,8 +709,8 @@ void main() {
       final model = ModelCatalog().getModel('small-classifier');
 
       if (model != null) {
-        final result = engine.checkModelCompatibility(model, deviceInfo);
-        expect(result, isA<CompatibilityResult>);
+        final result = await engine.checkModelCompatibility(model, deviceInfo);
+        expect(result, isA<CompatibilityResult>());
         // Small classifier should be compatible with most devices
       }
     });
@@ -922,7 +923,7 @@ void main() {
         ),
       );
 
-      expect(result, isA<OrchestrationResult>);
+      expect(result, isA<OrchestrationResult>());
       // Statistics tasks can be handled by rules
       expect(result.success, isTrue);
     });
@@ -992,13 +993,13 @@ void main() {
 
     test('Check health', () async {
       final health = await engine.checkHealth();
-      expect(health, isA<EngineHealth>);
+      expect(health, isA<EngineHealth>());
       // Health may vary but should not throw
     });
 
     test('Get installed models', () {
       final models = engine.getInstalledModels();
-      expect(models, isA<List<Model>>);
+      expect(models, isA<List<Model>>());
     });
 
     test('Get model recommendations', () async {
@@ -1012,10 +1013,10 @@ void main() {
         ),
       );
 
-      expect(recommendations, isA<List<ModelRecommendation>>);
+      expect(recommendations, isA<List<ModelRecommendation>>());
     });
 
-    test('Event listener', () {
+    test('Event listener', () async {
       String? receivedEvent;
       engine.addEventListener((event) {
         receivedEvent = event.type.name;
@@ -1033,7 +1034,7 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 100));
 
       // Event may or may not have been triggered depending on timing
-      expect(receivedEvent == null || receivedEvent.isNotEmpty, isTrue);
+      expect(receivedEvent == null || receivedEvent!.isNotEmpty, isTrue);
 
       engine.removeEventListener((event) {});
     });
@@ -1121,13 +1122,14 @@ void main() {
         contextType: 'feature',
         contextData: {'feature': 'e2e_search'},
       );
+      expect(recommendation, anyOf(isNull, isA<Recommendation>()));
 
       // Recommendation may be null if not enough data
       // That's OK - it shows the system is working correctly
 
       // Check engine health
       final health = await engine.checkHealth();
-      expect(health, isA<EngineHealth>);
+      expect(health, isA<EngineHealth>());
 
       await engine.dispose();
     });

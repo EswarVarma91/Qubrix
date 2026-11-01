@@ -18,7 +18,7 @@ class SecurityBadge extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isSecure ? AppColors.successLight : AppColors.error.withValue(0.1),
+          color: isSecure ? AppColors.successLight : AppColors.error.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Row(

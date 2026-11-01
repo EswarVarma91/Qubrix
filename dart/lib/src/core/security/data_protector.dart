@@ -1,5 +1,5 @@
 import 'dart:convert';
-import '../security/security_config.dart';
+import 'security_config.dart';
 
 /// Protects sensitive data with encryption and secure storage concepts
 /// 
@@ -125,7 +125,8 @@ class DataProtector {
 
   /// Secure nonce generation
   String _generateNonce() {
-    return 'nonce_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(100000)}';
+    final random = DateTime.now().microsecondsSinceEpoch % 100000;
+    return 'nonce_${DateTime.now().millisecondsSinceEpoch}_$random';
   }
 
   Future<String> _encryptData(String data, String iv) async {

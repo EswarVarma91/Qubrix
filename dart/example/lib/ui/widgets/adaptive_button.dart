@@ -43,7 +43,6 @@ class AdaptiveButton extends StatelessWidget {
           ),
           minimumSize: const Size(88, 40),
         ),
-        trailing: trailing,
       );
     }
     
@@ -65,7 +64,6 @@ class AdaptiveButton extends StatelessWidget {
         foregroundColor: AppColors.onPrimary,
         minimumSize: const Size(88, 40),
       ),
-      trailing: trailing,
     );
   }
 }

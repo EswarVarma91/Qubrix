@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import '../security/security_config.dart';
+import 'security_config.dart';
 
 /// Comprehensive security audit logging
 /// 

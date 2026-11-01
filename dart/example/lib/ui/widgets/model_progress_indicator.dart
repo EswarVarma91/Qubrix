@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:ai_sdk/ai_sdk.dart';
 import '../../core/constants/app_colors.dart';
 
 class ModelProgressIndicator extends StatelessWidget {
-  final dynamic progress;
+  final ModelProgress? progress;
   final bool isLoading;
   
   const ModelProgressIndicator({
@@ -17,10 +18,11 @@ class ModelProgressIndicator extends StatelessWidget {
       return const SizedBox.shrink();
     }
     
-    final percent = progress.percent / 100;
-    final operation = progress.operation?.name ?? 'Loading';
-    final status = progress.status ?? '';
-    final detail = progress.detail ?? '';
+    final current = progress!;
+    final percent = current.percent.clamp(0.0, 1.0);
+    final operation = current.operation.name;
+    final status = current.status ?? '';
+    final detail = current.detail ?? '';
     
     return Card(
       child: Padding(
