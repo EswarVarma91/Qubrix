@@ -1,7 +1,6 @@
 import 'package:get/get.dart';
 import '../../ui/screens/home_screen.dart';
 import '../../ui/screens/settings_screen.dart';
-import '../bindings/app_bindings.dart';
 
 /// GetX route definitions
 class AppRoutes {
@@ -12,6 +11,9 @@ class AppRoutes {
 }
 
 /// GetX route configuration
+///
+/// Dependencies are registered once in `setupDependencies()`; the controllers
+/// are shared, so the pages do not need per-route bindings.
 class AppPages {
   AppPages._();
 
@@ -19,24 +21,10 @@ class AppPages {
     GetPage(
       name: AppRoutes.home,
       page: () => const HomeScreen(),
-      binding: HomeBinding(),
     ),
     GetPage(
       name: AppRoutes.settings,
       page: () => const SettingsScreen(),
-      binding: SettingsBinding(),
     ),
   ];
-
-  /// Get binding for a route
-  static Bindings? bindingForRoute(String route) {
-    switch (route) {
-      case AppRoutes.home:
-        return HomeBinding();
-      case AppRoutes.settings:
-        return SettingsBinding();
-      default:
-        return null;
-    }
-  }
 }

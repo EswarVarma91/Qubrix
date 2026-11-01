@@ -1,12 +1,12 @@
+import Flutter
+import UIKit
 import XCTest
-@testable import Runner
 
-final class RunnerTests: XCTestCase {
-    func testExample() throws {
-        // XCTest Documentation
-        // https://developer.apple.com/documentation/xctest
+class RunnerTests: XCTestCase {
 
-        // Defining Test Cases and Test Methods
-        // https://developer.apple.com/documentation/xctest/defining_test_cases_and_test_methods
-    }
+  func testExample() {
+    // If you add code to the Runner application, consider adding tests here.
+    // See https://developer.apple.com/documentation/xctest for more information about using XCTest.
+  }
+
 }

@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'sdk_firebase_initializer.dart';
 import 'sdk_firebase_options.dart';
 
 /// SDK's Firebase Remote Config service.
@@ -64,33 +65,12 @@ class SdkRemoteConfigService {
       return _app!;
     }
 
-    // Initialize Firebase for the SDK
-    // If the host app already has Firebase initialized, we can
-    // use the existing app or create a separate one.
-    // Using a separate app with a different name ensures we don't
-    // conflict with the host app's Firebase.
-
-    final options = _getSdkFirebaseOptions();
-
-    // Try to use existing Firebase app if available, otherwise create new
-    if (Firebase.apps.isNotEmpty) {
-      // Check if we already created an app with our name
-      try {
-        _app = Firebase.app('qubrix_remote_config');
-      } catch (e) {
-        // App doesn't exist, create a new one
-        _app = await Firebase.initializeApp(
-          options: options,
-          name: 'qubrix_remote_config',
-        );
-      }
-    } else {
-      // No Firebase apps exist, initialize new one
-      _app = await Firebase.initializeApp(
-        options: options,
-        name: 'qubrix_remote_config',
-      );
-    }
+    // Initialize Firebase for the SDK.
+    //
+    // [SdkFirebaseInitializer] owns the SDK's named Firebase app, so the
+    // Remote Config service and the initializer always share one app instead
+    // of creating a second, differently named one.
+    _app = await SdkFirebaseInitializer.initialize();
 
     // Configure Remote Config for the SDK's own (named) Firebase app
     _remoteConfig = FirebaseRemoteConfig.instanceFor(app: _app!);
@@ -119,27 +99,6 @@ class SdkRemoteConfigService {
     _isInitialized = true;
 
     return _app!;
-  }
-
-  /// Get the SDK Firebase options.
-  ///
-  /// These should be replaced with actual Firebase project credentials
-  /// before deployment. See [SdkFirebaseOptions] for the structure.
-  FirebaseOptions _getSdkFirebaseOptions() {
-    // Try to use the default options if available
-    try {
-      return SdkFirebaseOptions.currentPlatform;
-    } catch (e) {
-      // Fallback to minimal options
-      return FirebaseOptions(
-        apiKey: 'YOUR_API_KEY',
-        appId: 'YOUR_APP_ID',
-        messagingSenderId: 'YOUR_SENDER_ID',
-        projectId: 'YOUR_PROJECT_ID',
-        databaseURL: 'https://YOUR_PROJECT_ID.firebaseio.com',
-        storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-      );
-    }
   }
 
   /// Fetch the HuggingFace model URL from Remote Config.
@@ -226,9 +185,7 @@ class SdkRemoteConfigService {
   /// Check if the SDK Firebase is properly configured.
   bool get isSdkFirebaseConfigured {
     try {
-      final options = SdkFirebaseOptions.currentPlatform;
-      return !options.apiKey.startsWith('YOUR_') &&
-          !options.appId.startsWith('YOUR_');
+      return SdkFirebaseOptions.isConfigured;
     } catch (e) {
       return false;
     }

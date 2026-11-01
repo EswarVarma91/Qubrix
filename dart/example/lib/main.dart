@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:qubrix/qubrix.dart';
 
-import 'core/firebase_remote_config.dart';
 import 'core/bindings/app_bindings.dart';
 import 'core/utils/router.dart';
 
@@ -22,10 +21,8 @@ Future<void> initializeFirebase() async {
   try {
     await SdkFirebaseInitializer.initialize();
     SdkFirebaseOptions.printConfigStatus();
-    final remoteConfigService = FirebaseRemoteConfigService();
-    await remoteConfigService.initialize();
   } catch (e) {
-    print('Firebase initialization error: $e');
+    debugPrint('Firebase initialization error: $e');
   }
 }
 

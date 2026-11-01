@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 import '../../core/constants/app_colors.dart';
 
 class ModelProgressIndicator extends StatelessWidget {

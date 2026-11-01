@@ -42,24 +42,28 @@ The SDK has its own Firebase configuration for Remote Config. This is separate f
    - Value: HuggingFace model URL (e.g., `https://huggingface.co/facebook/opt-1.3b`)
 4. Publish changes
 
-### Step 4: Update SDK Firebase Options
+### Step 4: Keep SDK Firebase Options in sync
 
-Update the `SdkFirebaseOptions` class with your Firebase credentials:
+`SdkFirebaseOptions` (`lib/src/firebase/sdk_firebase_options.dart`) already
+holds the credentials of the SDK's Firebase project `qubrix-77954`, matching
+the committed config files. Update the constants only if the project or the
+registered apps change:
 
 ```dart
 class SdkFirebaseOptions {
   // Android
-  static String androidApiKey = 'AIza...';      // From google-services.json
-  static String androidAppId = '1:...:android:...'; // From google-services.json
-  static String androidProjectId = '...';       // Your Firebase project ID
+  static const String androidApiKey = 'AIza...';        // From google-services.json
+  static const String androidAppId = '1:...:android:...'; // From google-services.json
+  static const String androidProjectId = '...';          // Your Firebase project ID
 
   // iOS
-  static String iosApiKey = 'AIza...';          // From GoogleService-Info.plist
-  static String iosAppId = '1:...:ios:...';     // From GoogleService-Info.plist
+  static const String iosApiKey = 'AIza...';             // From GoogleService-Info.plist
+  static const String iosAppId = '1:...:ios:...';        // From GoogleService-Info.plist
+  static const String iosBundleId = 'com.varma.qubrix';  // Registered iOS bundle ID
 
   // Common
-  static String messagingSenderId = '...';      // From config files
-  static String measurementId = 'G-...';        // From config files (optional)
+  static const String messagingSenderId = '...';         // From config files
+  static const String measurementId = 'G-...';           // Optional
 }
 ```
 
@@ -67,12 +71,12 @@ class SdkFirebaseOptions {
 
 ### Android
 
-- SDK's Firebase config: Place `google-services.json` in the SDK's Android directory
+- SDK's Firebase config: `example/android/app/google-services.json` (tracked, package `com.varma.qubrix`)
 - Host app Firebase config: Place `google-services.json` in `android/app/` of the host app
 
 ### iOS
 
-- SDK's Firebase config: Place `GoogleService-Info.plist` in the SDK's iOS directory
+- SDK's Firebase config: `example/ios/Runner/GoogleService-Info.plist` (tracked, bundle `com.varma.qubrix`)
 - Host app Firebase config: Place `GoogleService-Info.plist` in `ios/Runner/` of the host app
 
 ## Multiple Firebase Apps
@@ -111,18 +115,21 @@ SdkFirebaseOptions.printConfigStatus();
 ### Firebase Config Conflicts
 
 If you see conflicts between SDK Firebase and host app Firebase:
-- Ensure they use different Firebase app names
-- The SDK uses `qubrix` as the default app name
-- The host app should use its own app name
+- The SDK always initializes a *named* app: `SdkFirebaseOptions.firebaseAppName` (`qubrix`)
+- The host app keeps the default app (whatever name it initialized)
+- Both configurations can be active at the same time, and the SDK reuses its
+  existing app instead of initializing a second one
 
 ## API Keys Security
 
-**Important:** Never commit actual API keys or credentials to version control.
+Firebase client config (`google-services.json`, `GoogleService-Info.plist` and
+the values in `SdkFirebaseOptions`) is not a secret: it ships inside every app
+binary. What must stay out of version control is privileged material such as
+service account keys, the Firebase Admin SDK credentials and signing keys.
 
-- The `SdkFirebaseOptions` class contains placeholder values
-- Replace placeholders with actual values in your secure environment
-- Use environment-specific config files or build flavors for different environments
-- Consider using Flutter's `--dart-define` for build-time config
+- The tracked client configs belong to the SDK's own project (`qubrix-77954`)
+- Keep the app restricted with Firebase Security Rules / API key restrictions in Google Cloud
+- Use separate Firebase projects for staging and production when needed
 
 ## Multiple Environments
 

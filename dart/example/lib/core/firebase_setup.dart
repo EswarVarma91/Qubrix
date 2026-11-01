@@ -12,7 +12,7 @@
 /// - Configured in the SDK's Firebase project
 /// - The SDK initializes this automatically
 /// - Host app doesn't need to configure this
-/// - Placeholders are in `SdkFirebaseOptions` (in the SDK)
+/// - Credentials live in `SdkFirebaseOptions` (project qubrix-77954)
 ///
 /// ### 2. Host App's Firebase (User's own Firebase)
 /// - Used by the host app for its own features (analytics, auth, etc.)
@@ -33,7 +33,7 @@
 /// 1. Create a Firebase project for the SDK at https://console.firebase.google.com
 /// 2. Add Android and iOS apps to the project
 /// 3. Download google-services.json (Android) and GoogleService-Info.plist (iOS)
-/// 4. Replace the placeholder values in the SDK's SdkFirebaseOptions
+/// 4. Update the values in the SDK's SdkFirebaseOptions if they change
 ///
 /// ## Host App May Have Its Own Firebase
 ///

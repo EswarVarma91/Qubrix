@@ -18,6 +18,8 @@ import 'sdk_firebase_options.dart';
 /// This ensures the SDK always has access to Remote Config for fetching
 /// the HuggingFace model URL.
 class SdkFirebaseInitializer {
+  SdkFirebaseInitializer._();
+
   static bool _sdkAppInitialized = false;
   static bool _hostAppHasFirebase = false;
 
@@ -29,81 +31,49 @@ class SdkFirebaseInitializer {
 
   /// Initialize the SDK's Firebase.
   ///
-  /// This checks if the host app has Firebase. If it does, we note it
-  /// but still ensure the SDK has its own Remote Config configured.
-  /// If the host app doesn't have Firebase, we initialize the SDK's
-  /// own Firebase instance.
+  /// A dedicated named Firebase app ([SdkFirebaseOptions.firebaseAppName]) is
+  /// created, so it can coexist with a host app that owns the default app.
   ///
   /// Returns the Firebase app instance to use for the SDK.
-  static Future<FirebaseApp> initialize({String appName = 'qubrix'}) async {
-    // Check if host app has Firebase
-    _hostAppHasFirebase = Firebase.apps.isNotEmpty;
+  static Future<FirebaseApp> initialize({
+    String appName = SdkFirebaseOptions.firebaseAppName,
+  }) async {
+    _hostAppHasFirebase =
+        Firebase.apps.any((app) => app.name != appName);
 
-    // If SDK app already initialized, return it
-    if (_sdkAppInitialized) {
-      try {
-        return Firebase.app(appName);
-      } catch (e) {
-        // Fall through to reinitialize
-      }
-    }
-
-    // Get SDK Firebase options
-    final options = _getSdkOptions();
-
-    // If host app has Firebase, create SDK app with a different name
-    // to avoid conflicts. This way both host app Firebase and SDK
-    // Firebase can coexist.
-    if (_hostAppHasFirebase) {
-      // Check if our SDK app already exists
-      try {
-        final existingApp = Firebase.app(appName);
+    // Reuse the SDK app if it was already created.
+    for (final app in Firebase.apps) {
+      if (app.name == appName) {
         _sdkAppInitialized = true;
-        return existingApp;
-      } catch (e) {
-        // SDK app doesn't exist, create it
+        return app;
       }
     }
 
-    // Initialize or create the SDK's Firebase app
-    FirebaseApp app;
-    if (_hostAppHasFirebase) {
-      // Host has Firebase - create a secondary app for SDK
-      try {
-        app = Firebase.app(appName);
-      } catch (e) {
-        app = await Firebase.initializeApp(
-          options: options,
-          name: appName,
-        );
-      }
-    } else {
-      // No host Firebase - initialize SDK's own Firebase
-      app = await Firebase.initializeApp(
-        options: options,
-        name: appName,
-      );
-    }
+    final app = await Firebase.initializeApp(
+      options: _getSdkOptions(),
+      name: appName,
+    );
 
     _sdkAppInitialized = true;
     return app;
   }
 
   /// Get the current Firebase app for the SDK.
-  static FirebaseApp getSdkApp({String appName = 'qubrix'}) {
-    try {
-      return Firebase.app(appName);
-    } catch (e) {
-      throw StateError(
-        'SDK Firebase not initialized. Call SdkFirebaseInitializer.initialize() first.',
-      );
+  static FirebaseApp getSdkApp({
+    String appName = SdkFirebaseOptions.firebaseAppName,
+  }) {
+    for (final app in Firebase.apps) {
+      if (app.name == appName) return app;
     }
+    throw StateError(
+      'SDK Firebase not initialized. Call SdkFirebaseInitializer.initialize() first.',
+    );
   }
 
-  /// Check if Firebase is ready for use.
+  /// Check if the SDK Firebase app is ready for use.
   static Future<bool> isFirebaseReady() async {
     try {
-      await Firebase.initializeApp();
+      await initialize();
       return true;
     } catch (e) {
       return false;

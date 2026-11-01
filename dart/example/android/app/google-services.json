@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "532964963634",
+    "project_id": "qubrix-77954",
+    "storage_bucket": "qubrix-77954.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:532964963634:android:80b4ed67c62ab6609dd32b",
+        "android_client_info": {
+          "package_name": "com.varma.qubrix"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiSCdt6Bkxk5jSxqA-RqT0-OGLo3HZZks"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

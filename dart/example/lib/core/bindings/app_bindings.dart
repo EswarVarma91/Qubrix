@@ -19,23 +19,15 @@ Future<void> setupDependencies() async {
   await engine.initialize();
   getIt.registerSingleton<AdaptiveAgentEngine>(engine);
 
-  // Initialize AI repository
-  final aiRepository = AiRepository(engine);
+  // Initialize AI repository, reusing the Remote Config service so downloads
+  // use the HuggingFace URL published in Firebase.
+  final aiRepository = AiRepository(engine, remoteConfigService);
   getIt.registerSingleton<AiRepository>(aiRepository);
-}
 
-/// GetX binding for the home route.
-class HomeBinding extends Bindings {
-  @override
-  void dependencies() {
-    Get.put(HomeController());
-  }
-}
-
-/// GetX binding for the settings route.
-class SettingsBinding extends Bindings {
-  @override
-  void dependencies() {
-    Get.put(HomeController());
-  }
+  // Controllers resolve their services through GetX, so expose them there as
+  // well and keep one shared HomeController for every route.
+  Get.put(remoteConfigService);
+  Get.put(engine);
+  Get.put(aiRepository);
+  Get.put(HomeController(), permanent: true);
 }

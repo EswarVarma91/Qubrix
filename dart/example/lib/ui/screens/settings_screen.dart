@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:ai_sdk/ai_sdk.dart';
+import 'package:qubrix/qubrix.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/firebase_remote_config.dart';
 import '../controllers/home_controller.dart';
