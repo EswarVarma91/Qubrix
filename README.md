@@ -4,73 +4,197 @@ An adaptive, personalized AI automation platform for mobile applications.
 
 ## Overview
 
-This SDK evolves from an on-device AI SDK into an adaptive, personalized AI automation platform. It combines:
+This SDK is a Flutter/Dart package that provides an adaptive, personalized AI automation engine. It downloads and manages AI models from HuggingFace, runs AI tasks locally, and learns user preferences.
 
-1. **Smallest capable model selection** - Automatically use the smallest model that can reliably complete tasks
-2. **Personalized learning** - Learn user routines and preferences from permitted interactions
-3. **Proactive automation** - Suggest useful actions and perform multi-step workflows when authorized
+## Key Features
+
+### 1. Background Model Management
+- Models are configured via **Firebase Remote Config** (no user selection)
+- Only the HuggingFace URL is stored in Firebase (`hf_model_url` parameter)
+- User taps a single "Download" button - SDK handles everything in background
+- Download progress and model loading progress shown via callbacks
+
+### 2. Security-First Design
+- **NO user-entered secrets** - device-bound master key (random 256-bit)
+- Biometric gated access (not key derivation)
+- Per-customer keys via HKDF(master_key, customerId, salt)
+- AES-256-GCM encryption for customer data
+- Secure storage, audit logging, model tamper protection, secure delete
+- Emergency breach response with auto-lockdown
+
+### 3. Adaptive AI Agent Engine
+- **AI Model Manager** - Downloads/manages models from HuggingFace
+- **Compatibility Engine** - Validates models against device capabilities
+- **Model Optimizer** - Finds smallest model meeting quality requirements
+- **Personalization Engine** (3-layer) - Learns from app-provided events
+- **Recommendation Engine** - Suggests actions based on context
+- **Automation Engine** (3 levels: Suggest/Prepare/Execute) - Executes workflows
+- **Task Orchestrator** - Unified coordination layer
+
+### 4. Privacy-First
+- Learn only from app-provided events
+- Local processing option
+- Purchases/deletions/payments require explicit confirmation
 
 ## Architecture
 
-### Core Components
-
 ```
 MOBILE APPLICATION
-                    |
-               YOUR SDK
-                    |
-          TASK ORCHESTRATOR
-                    |
-    +---------------+------------------+
-    |               |                  |
-    v               v                  v
-MODEL MANAGER  PERSONALIZATION    ACTION REGISTRY
-    |            ENGINE               |
-    v               |                  |
-COMPATIBILITY       v                  v
-   ENGINE       RECOMMENDATION     AUTOMATION
-    |              ENGINE              ENGINE
-    |               |                  |
-    +---------------+------------------+
-                    |
+       |
+    YOUR SDK (Flutter/Dart)
+       |
+  TASK ORCHESTRATOR
+       |
+  +----+----+----------------------------+
+  |         |                            |
+  v         v                            v
+MODEL   PERSONALIZATION              ACTION REGISTRY
+MANAGER    ENGINE                       |
+  |         |                           v
+  v         v                      AUTOMATION ENGINE
+COMPATIBILITY  RECOMMENDATION          (Suggest/Prepare/Execute)
+  ENGINE         ENGINE
+  |               |
+  +---------------+----
+                  |
             MODEL SELECTION
-                    |
-      +-------------+-------------+
-      |             |             |
-      v             v             v
-   RULES        SMALL MODEL    LARGER MODEL
-      |             |             |
-      +-------------+-------------+
-                    |
-             VALIDATION LAYER
-                    |
-            AUTHORIZED EXECUTION
-                    |
-            RESULT AND FEEDBACK
+                  |
+        +---------+---------+
+        |         |         |
+        v         v         v
+     RULES    SMALLEST   LARGER
+              CAPABLE    MODEL
+              MODEL
+                  |
+             VALIDATION
+                  |
+            EXECUTION
 ```
 
-## Components
+## Project Structure
 
-### 1. AI Model Manager
-Downloads, installs, updates, and removes models.
+```
+.
+├── dart/
+│   ├── lib/
+│   │   └── src/
+│   │       ├── agent/         # Task orchestrator, agent engine
+│   │       ├── model/         # Model manager, compatibility, optimizer
+│   │       ├── personalization/ # Personalization engine
+│   │       ├── recommendation/ # Recommendation engine
+│   │       ├── automation/    # Automation engine
+│   │       ├── core/          # Security, types, utilities
+│   │       └── ai_sdk.dart    # Main library export
+│   └── pubspec.yaml
+│
+├── dart/example/
+│   ├── lib/
+│   │   ├── core/              # Constants, routes, Firebase config
+│   │   ├── data/              # Repositories
+│   │   ├── ui/                # Screens, widgets, controllers (GetX)
+│   │   └── main.dart          # App entry point
+│   └── pubspec.yaml
+│
+└── README.md
+```
 
-### 2. Compatibility Engine
-Validates models against device and runtime capabilities.
+## Example App
 
-### 3. Model Optimizer
-Finds the smallest model that meets task requirements.
+The example app demonstrates the SDK with:
 
-### 4. Personalization Engine
-Learns permitted routines and preferences.
+- **GetX** state management + **get_it** for dependency injection
+- **Responsive UI**: Tablet (2-column) + Mobile (single column)
+- **Reusable widgets**: AdaptiveButton, StatusCard, ActionGrid, ModelProgressIndicator
+- **Centralized constants**: AppColors, AppStrings, AppTheme
+- **AppRoutes/AppPages**: Centralized routing
 
-### 5. Recommendation Engine
-Suggests useful actions based on context and learned patterns.
+### Home Screen
 
-### 6. Automation Engine
-Executes approved actions through the application's supported interfaces.
+- Status card showing app state
+- Security status (protected/not compromised)
+- Cloud download button (Icons.cloud_download)
+- Action buttons: Run Task, Get Recommendation, Check Health
+- Model progress indicator during download
 
-### 7. Task Orchestrator
-Unified layer coordinating all components.
+### Settings Screen
+
+- Security configuration
+- Firebase setup status
+- Model management
+
+## Firebase Remote Config Setup
+
+The app uses Firebase Remote Config to get the HuggingFace model URL:
+
+1. Add Firebase to your project:
+   - Android: `google-services.json` in `android/app/`
+   - iOS: `GoogleService-Info.plist` in `ios/Runner/`
+
+2. In Firebase console, add a parameter:
+   - Key: `hf_model_url`
+   - Value: HuggingFace model URL (e.g., `https://huggingface.co/facebook/demo-model`)
+
+3. Add dependencies to `dart/example/pubspec.yaml`:
+   ```yaml
+   dependencies:
+     firebase_core: ^latest
+     firebase_remote_config: ^latest
+   ```
+
+4. Initialize Firebase in `main.dart` before using the SDK.
+
+**Note**: When Firebase is not configured, the app falls back to a local default URL.
+
+## User Flow
+
+```
+1. User opens app
+   └─> App loads (Firebase not checked yet)
+
+2. User taps "Download Model" (cloud icon)
+   └─> Check if any model is installed
+       ├─> If YES: Show "Model already installed" - skip Firebase
+       └─> If NO: 
+           ├─> Fetch HuggingFace URL from Firebase Remote Config
+           ├─> Extract repo ID from URL
+           └─> Download model from HuggingFace
+               ├─> Show download progress
+               ├─> Show verification progress
+               ├─> Show loading progress
+               └─> Show "Model ready"
+
+3. User can now run tasks with the model
+```
+
+**The user never sees or selects a model - it's a background task.**
+
+## Security Components
+
+| Component | Purpose |
+|-----------|----------|
+| SecurityConfig | Central security configuration |
+| IntegrityVerifier | Verify SDK binary integrity |
+| PermissionGuard | Request/check permissions |
+| TamperDetector | Detect tampering attempts |
+| DataProtector | Encrypt/decrypt data |
+| CustomerDataProtector | Per-customer AES-256-GCM |
+| DataIsolation | Per-customer session isolation |
+| EmergencyBreachResponse | Auto-lockdown on breach |
+| SecureStorageManager | Platform-backed key storage |
+| AuditLogger | Tamper-evident logging |
+| ModelTamperProtection | Anti-rollback, substitution detection |
+| SecureDeleteManager | Multi-pass overwrite, memory wipe |
+| ModelIntegrityChecker | Handle model change scenarios |
+
+## Model Change Scenarios
+
+The SDK handles these scenarios without losing customer data:
+
+- HuggingFace deletes/updates a model
+- User clears cache or fresh installs app
+- Model files become corrupted
+
+Customer data remains safe via encryption and key isolation.
 
 ## Getting Started
 
