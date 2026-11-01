@@ -1,19 +1,34 @@
-/// AI SDK - Adaptive AI Agent Engine
-///
-/// An adaptive, personalized AI automation platform for mobile applications.
-///
-/// This library provides:
-/// 1. Adaptive model delivery - smallest validated model for tasks
-/// 2. Automatic compatibility management
-/// 3. Personalized assistance - learns permitted in-app routines
-/// 4. Safe application automation - combines developer-defined actions
+// Adaptive AI Agent Engine SDK
+//
+// A comprehensive on-device AI SDK for adaptive, personalized AI automation
+// in mobile applications.
+//
+// Core components:
+// - Agent Engine: Orchestrates all AI operations
+// - Model Manager: Downloads, installs, manages AI models
+// - Task Orchestrator: Routes tasks to appropriate models
+// - AI Model Manager: Model selection and lifecycle
+// - Compatibility Engine: Device-model compatibility checks
+// - Model Optimizer: Selects optimal model for task
+// - Personalization Engine: Learns user preferences
+// - Recommendation Engine: Suggests actions based on context
+// - Automation Engine: Executes automated workflows
+// - Security: Encryption, integrity, protection
 
 library ai_sdk;
 
-// Core types
-export 'src/core/types.dart';
-
-// Security
+export 'src/agent/agent_engine.dart';
+export 'src/agent/task_orchestrator.dart';
+export 'src/model/model_manager.dart';
+export 'src/model/model_types.dart';
+export 'src/model/model_catalog.dart';
+export 'src/model/model_selector.dart';
+export 'src/model/model_integrity_checker.dart';
+export 'src/core/compatibility_engine.dart';
+export 'src/core/model_optimizer.dart';
+export 'src/core/personalization_engine.dart';
+export 'src/core/recommendation_engine.dart';
+export 'src/core/automation_engine.dart';
 export 'src/core/security/security_config.dart';
 export 'src/core/security/integrity_verifier.dart';
 export 'src/core/security/permission_guard.dart';
@@ -22,29 +37,3 @@ export 'src/core/security/data_protector.dart';
 export 'src/core/security/customer_data_protector.dart';
 export 'src/core/security/data_isolation.dart';
 export 'src/core/security/emergency_breach_response.dart';
-
-// Model management
-export 'src/model/model_types.dart';
-export 'src/model/model_manager.dart';
-export 'src/model/compatibility_engine.dart';
-export 'src/model/model_catalog.dart';
-export 'src/model/model_optimizer.dart';
-
-export 'src/model/model_manager.dart' show ModelProgress, ModelOperationType;
-
-// Personalization
-export 'src/personalization/activity_event.dart';
-export 'src/personalization/profile_manager.dart';
-export 'src/personalization/personalization_engine.dart';
-export 'src/personalization/recommendation_engine.dart';
-
-// Automation
-export 'src/automation/action_registry.dart';
-export 'src/automation/permission_manager.dart';
-export 'src/automation/automation_engine.dart';
-
-// Main engine
-export 'src/agent/agent_engine.dart';
-
-// Version
-export 'src/version.dart';
