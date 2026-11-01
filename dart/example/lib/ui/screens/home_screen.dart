@@ -19,9 +19,7 @@ class HomeScreen extends GetView<HomeController> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () {
-              // Navigate to settings
-            },
+            onPressed: () => Get.find<HomeController>().navigateToSettings(),
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:ai_sdk/ai_sdk.dart';
+import '../../core/utils/router.dart';
 import '../../data/repositories/ai_repository.dart';
 
 /// GetX Controller for the home screen
@@ -223,6 +224,33 @@ class HomeController extends GetxController {
   Future<void> clearPersonalizationData() async {
     await _repository.clearPersonalizationData();
     _setStatus('Personalization data cleared');
+  }
+
+  // Navigation methods (GetX)
+  void navigateToSettings() {
+    Get.toNamed(AppRoutes.settings);
+  }
+
+  void navigateBack() {
+    Get.back();
+  }
+
+  void navigateToHome() {
+    Get.offAllNamed(AppRoutes.home);
+  }
+
+  void showSnackbar(String message, {bool isSuccessful = true}) {
+    Get.snackbar(
+      'AI SDK',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 3),
+      backgroundColor: isSuccessful ? AppColors.success : AppColors.error,
+      colorText: AppColors.onError,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 8,
+      isDismissible: true,
+    );
   }
 
   @override

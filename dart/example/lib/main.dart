@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'core/bindings/app_bindings.dart';
 import 'core/constants/app_strings.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/router.dart';
 import 'ui/screens/home_screen.dart';
 
 void main() async {
@@ -14,7 +15,7 @@ void main() async {
   runApp(const AiSdkApp());
 }
 
-/// Main application widget
+/// Main application widget with GetX routing
 class AiSdkApp extends StatelessWidget {
   const AiSdkApp({super.key});
 
@@ -24,8 +25,10 @@ class AiSdkApp extends StatelessWidget {
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      initialBinding: HomeBinding(),
-      home: const AdaptiveHomePage(),
+      initialRoute: AppRoutes.home,
+      getPages: AppPages.pages,
+      defaultTransition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 300),
     );
   }
 }
@@ -220,6 +223,14 @@ class AdaptiveHomePage extends StatelessWidget {
               label: AppStrings.checkHealth,
               icon: Icons.health_and_safety,
               onPressed: controller.checkHealth,
+              isOutlined: true,
+              width: double.infinity,
+            ),
+            const SizedBox(height: 12),
+            AdaptiveButton(
+              label: AppStrings.settings,
+              icon: Icons.settings,
+              onPressed: controller.navigateToSettings,
               isOutlined: true,
               width: double.infinity,
             ),
