@@ -37,3 +37,7 @@ export 'src/core/security/data_protector.dart';
 export 'src/core/security/customer_data_protector.dart';
 export 'src/core/security/data_isolation.dart';
 export 'src/core/security/emergency_breach_response.dart';
+export 'src/core/security/secure_storage_manager.dart';
+export 'src/core/security/audit_logger.dart';
+export 'src/core/security/model_tamper_protection.dart';
+export 'src/core/security/secure_delete_manager.dart';
