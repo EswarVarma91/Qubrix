@@ -17,7 +17,7 @@ class AppPages {
   static final pages = [
     GetPage(
       name: AppRoutes.home,
-      page: () => const HomeScreen(),
+      page: () => const AdaptiveHomePage(),
       binding: HomeBinding(),
     ),
     GetPage(
@@ -26,4 +26,16 @@ class AppPages {
       binding: SettingsBinding(),
     ),
   ];
+
+  /// Get binding for a route
+  static Bindings? bindingForRoute(String route) {
+    switch (route) {
+      case AppRoutes.home:
+        return HomeBinding();
+      case AppRoutes.settings:
+        return SettingsBinding();
+      default:
+        return null;
+    }
+  }
 }

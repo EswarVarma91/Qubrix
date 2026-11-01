@@ -4,6 +4,7 @@ class AppStrings {
 
   // App
   static const String appName = 'AI SDK Demo';
+  static const String appVersion = '1.0.0';
   static const String loading = 'Loading...';
   static const String retry = 'Retry';
   static const String cancel = 'Cancel';

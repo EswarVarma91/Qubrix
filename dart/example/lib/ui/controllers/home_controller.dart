@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:ai_sdk/ai_sdk.dart';
+import '../../core/constants/app_strings.dart';
 import '../../core/utils/router.dart';
 import '../../data/repositories/ai_repository.dart';
 import '../../core/bindings/app_bindings.dart';
@@ -271,6 +272,37 @@ class HomeController extends GetxController {
 
   void navigateToHome() {
     Get.offAllNamed(AppRoutes.home);
+  }
+
+  void navigateToSecurity() {
+    // Navigate to security details screen (could be in settings)
+    showSnackbar('Security details: ${_integrityStatus.value}', isSuccessful: !_tamperWarning.value);
+  }
+
+  void navigateToModels() {
+    showSnackbar('${installedModelsCount} models installed', isSuccessful: true);
+  }
+
+  void showAbout() {
+    showSnackbar('AI SDK Demo v${AppStrings.appVersion}', isSuccessful: true);
+  }
+
+  void clearModelCache() async {
+    _isLoading.value = true;
+    try {
+      // Clear all downloaded models
+      await _repository.clearModelCache();
+      _updateModelStatus();
+      showSnackbar('Model cache cleared', isSuccessful: true);
+    } catch (e) {
+      showSnackbar('Failed to clear cache: $e', isSuccessful: false);
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  void showStorageInfo() {
+    showSnackbar('Storage info: models=${installedModelsCount}', isSuccessful: true);
   }
 
   void showSnackbar(String message, {bool isSuccessful = true}) {

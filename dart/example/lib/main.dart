@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'core/bindings/app_bindings.dart';
 import 'core/constants/app_strings.dart';
+import 'core/constants/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/router.dart';
 import 'ui/screens/home_screen.dart';
+import 'ui/screens/settings_screen.dart';
+import 'ui/widgets/security_badge.dart';
+import 'ui/widgets/model_summary_card.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize dependencies (includes engine initialization)
   await initializeDependencies();
 
   runApp(const AiSdkApp());
@@ -25,10 +28,20 @@ class AiSdkApp extends StatelessWidget {
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
       initialRoute: AppRoutes.home,
       getPages: AppPages.pages,
       defaultTransition: Transition.fadeIn,
       transitionDuration: const Duration(milliseconds: 300),
+      builder: (context, child) {
+        // Add security badge to all app bars
+        return Stack(
+          children: [
+            child ?? const SizedBox.shrink(),
+          ],
+        );
+      },
     );
   }
 }
@@ -41,18 +54,27 @@ class AdaptiveHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.sizeOf(context).width > 600;
     final isSmallMobile = MediaQuery.sizeOf(context).width < 360;
+    final isLargeScreen = MediaQuery.sizeOf(context).width > 900;
+
+    // Use adaptive container width
+    final containerWidth = isSmallMobile 
+        ? double.infinity 
+        : (isLargeScreen ? 1000 : 800);
 
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: isSmallMobile ? 12 : (isTablet ? 32 : 20),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: containerWidth),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmallMobile ? 12 : (isTablet ? 32 : 20),
+                vertical: isSmallMobile ? 8 : 16,
+              ),
+              child: isTablet && !isLargeScreen
+                  ? _buildTabletLayout(context)
+                  : const _buildMobileLayout(),
             ),
-            child: isTablet
-                ? _buildTabletLayout(context)
-                : const _buildMobileLayout(),
           ),
         ),
       ),
@@ -60,135 +82,81 @@ class AdaptiveHomePage extends StatelessWidget {
   }
 
   Widget _buildTabletLayout(BuildContext context) {
-    // Tablet layout with two columns
+    final isLargeScreen = MediaQuery.sizeOf(context).width > 900;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left side - Status card (larger)
+        // Left side - Main content
         Expanded(
-          flex: 2,
+          flex: isLargeScreen ? 3 : 2,
           child: SingleChildScrollView(
             child: Column(
               children: [
+                const SizedBox(height: 8),
+                _buildStatusCard(context),
                 const SizedBox(height: 24),
-                _buildTabletStatusCard(context),
-                const SizedBox(height: 32),
-                _buildModelStatusCard(context),
+                _buildModelSummaryCard(context),
+                const SizedBox(height: 24),
+                _buildSecurityStatusCard(context),
                 const SizedBox(height: 24),
               ],
             ),
           ),
         ),
-        const VerticalDivider(width: 1, thickness: 1),
-        // Right side - Actions (narrower)
-        Expanded(
-          flex: 1,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                const SizedBox(height: 24),
-                Text(
-                  'Quick Actions',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 16),
-                _buildActionPanel(context),
-                const SizedBox(height: 24),
-              ],
+        if (isLargeScreen) const SizedBox(width: 24),
+        // Right side - Actions panel (only on medium tablets)
+        if (!isLargeScreen)
+          Container(
+            width: 300,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  _buildSectionHeader(context, 'Quick Actions'),
+                  const SizedBox(height: 12),
+                  _buildActionPanel(context),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
 
-  Widget _buildTabletStatusCard(BuildContext context) {
-    return Obx(() => StatusCard(
-          title: AppStrings.appName,
-          status: Get.find<HomeController>().status,
-          isLoading: Get.find<HomeController>().isLoading,
-          icon: Icons.ai_large,
-          subtitle: _getSubtitle(context),
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+    );
+  }
+
+  Widget _buildStatusCard(BuildContext context) {
+    return const StatusCard(
+      title: AppStrings.appName,
+      status: 'AI SDK Ready',
+      icon: Icons.ai_large,
+      subtitle: 'Tap download to get started',
+    );
+  }
+
+  Widget _buildModelSummaryCard(BuildContext context) {
+    return Obx(() => ModelSummaryCard(
+          modelCount: Get.find<HomeController>().installedModelsCount,
+          totalSizeMb: 0,
+          isModelLoaded: Get.find<HomeController>().isModelLoaded,
+          onFreeMemory: Get.find<HomeController>().unloadModel,
         ));
   }
 
-  Widget _buildModelStatusCard(BuildContext context) {
-    return Obx(() {
-      final controller = Get.find<HomeController>();
-      if (controller.installedModelsCount == 0) {
-        return const SizedBox.shrink();
-      }
-
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  controller.isModelLoaded
-                      ? Icons.memory
-                      : Icons.storage,
-                  color: AppColors.primary,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Model Status',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${controller.installedModelsCount} model(s) installed',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    if (controller.isModelLoaded) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.successLight,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'In Memory • Ready for inference',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.success,
-                                fontWeight: FontWeight.w500,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: controller.unloadModel,
-                icon: const Icon(Icons.memory, size: 18),
-                label: const Text('Free Memory'),
-              ),
-            ],
-          ),
-        ),
-      );
-    });
+  Widget _buildSecurityStatusCard(BuildContext context) {
+    return Obx(() => SecurityStatusCard(
+          isSecure: !Get.find<HomeController>().tamperWarning,
+          onRefresh: Get.find<HomeController>().refreshSecurityStatus,
+        ));
   }
 
   Widget _buildActionPanel(BuildContext context) {
@@ -220,14 +188,6 @@ class AdaptiveHomePage extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             AdaptiveButton(
-              label: AppStrings.checkHealth,
-              icon: Icons.health_and_safety,
-              onPressed: controller.checkHealth,
-              isOutlined: true,
-              width: double.infinity,
-            ),
-            const SizedBox(height: 12),
-            AdaptiveButton(
               label: AppStrings.settings,
               icon: Icons.settings,
               onPressed: controller.navigateToSettings,
@@ -239,18 +199,6 @@ class AdaptiveHomePage extends StatelessWidget {
   }
 
   Widget _buildMobileLayout() {
-    // Mobile layout - single column
     return const HomeScreen();
-  }
-
-  String? _getSubtitle(BuildContext context) {
-    final controller = Get.find<HomeController>();
-    if (controller.installedModelsCount > 0) {
-      return '${controller.installedModelsCount} model(s) installed';
-    }
-    if (controller.isModelLoaded) {
-      return AppStrings.modelLoaded;
-    }
-    return null;
   }
 }
