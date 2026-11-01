@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/model_catalog.dart';
 import '../../core/theme/app_theme.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/action_grid.dart';
 import '../widgets/model_progress_indicator.dart';
 import '../widgets/status_card.dart';
+import '../widgets/adaptive_button.dart';
 
 /// Home screen with reactive GetX state management
 class HomeScreen extends GetView<HomeController> {
@@ -168,8 +171,8 @@ class HomeScreen extends GetView<HomeController> {
                       ActionItem(
                         label: AppStrings.downloadModel,
                         icon: Icons.download,
-                        description: 'Download smallest suitable model',
-                        onPressed: controller.downloadModel,
+                        description: 'Select a HuggingFace model to download',
+                        onPressed: controller.showModelPickerDialog,
                         isLoading: controller.isDownloading,
                       ),
                       ActionItem(
@@ -220,7 +223,9 @@ class HomeScreen extends GetView<HomeController> {
                 ],
               ),
             ),
-          );
+          ),
+          // Model picker overlay
+          _buildModelPickerOverlay(context),
         }),
       ),
     );
@@ -313,6 +318,187 @@ class HomeScreen extends GetView<HomeController> {
       return AppStrings.modelLoaded;
     }
     return null;
+  }
+
+  /// Build model picker dialog overlay when showModelPicker is true
+  Widget _buildModelPickerOverlay(BuildContext context) {
+    if (!controller.showModelPicker) {
+      return const SizedBox.shrink();
+    }
+
+    return Stack(
+      children: [
+        ModalBarrier(
+          color: Colors.black.withValue(0.4),
+          dismissible: true,
+          onDismiss: () => controller.setShowModelPicker(false),
+        ),
+        Center(
+          child: _buildModelPickerDialog(context),
+        ),
+      ],
+    );
+  }
+
+  /// Model picker dialog - shows available HuggingFace models
+  Widget _buildModelPickerDialog(BuildContext context) {
+    return Obx(() {
+      final models = controller.availableModels;
+      final selectedRepo = controller.selectedModelRepo;
+
+      return AlertDialog(
+        title: const Text('Select Model to Download'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Text(
+                  'Choose a HuggingFace model repo to download.\n'
+                  'The SDK will handle discovery, variant selection, and download.\n'
+                  'Developer specifies which repo to use.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ),
+              if (selectedRepo.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Selected: $selectedRepo',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          controller.selectModel(
+                            HuggingFaceModels.findByRepoId(selectedRepo) ??
+                                HuggingFaceModels.custom(
+                                  repoId: selectedRepo,
+                                  displayName: selectedRepo,
+                                ),
+                          );
+                        },
+                        tooltip: 'Deselect',
+                      ),
+                    ],
+                  ),
+                ),
+              Expanded(
+                child: models.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No models configured.'
+                          '\n\nAdd models to HuggingFaceModels.all'
+                          '\nor use HuggingFaceModels.custom()',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: models.length,
+                        itemBuilder: (context, index) {
+                          final model = models[index];
+                          final isSelected = selectedRepo == model.repoId;
+
+                          return ListTile(
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppColors.primaryLight
+                                    : AppColors.surfaceVariant.withValue(0.5),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.account_tree,
+                                color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+                                size: 20,
+                              ),
+                            ),
+                            title: Text(
+                              model.displayName,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  model.repoId,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        fontFamily: 'monospace',
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  model.description,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (model.variants.length > 1) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${model.variants.length} variant(s) available',
+                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.primary,
+                                        ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            trailing: isSelected
+                                ? const Icon(Icons.check_circle, color: AppColors.primary)
+                                : null,
+                            onTap: () => controller.selectModel(model),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              controller.setShowModelPicker(false);
+              Navigator.of(context).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: selectedRepo.isNotEmpty
+                ? () {
+                    controller.setShowModelPicker(false);
+                    Navigator.of(context).pop();
+                    controller.downloadModel();
+                  }
+                : null,
+            child: Text(AppStrings.downloadModel),
+          ),
+        ],
+      );
+    });
   }
 }
 

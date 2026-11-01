@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/model_catalog.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/security_badge.dart';
 import '../widgets/model_summary_card.dart';
@@ -115,6 +116,19 @@ class SettingsScreen extends GetView<HomeController> {
                   onTap: controller.navigateToModels,
                 ),
                 _SettingsTile(
+                  icon: Icons.model_training,
+                  title: 'Select Model to Download',
+                  subtitle: 'Choose a HuggingFace repo',
+                  onTap: () => _showDownloadModelPicker(context),
+                ),
+                _SettingsTile(
+                  icon: Icons.add,
+                  title: 'Add Custom HuggingFace Model',
+                  subtitle: 'Add your own repo URL',
+                  iconColor: AppColors.primary,
+                  onTap: () => _showAddCustomModelDialog(context),
+                ),
+                _SettingsTile(
                   icon: Icons.recommend,
                   title: 'Model Recommendations',
                   subtitle: 'Find best model for your tasks',
@@ -217,17 +231,15 @@ class SettingsScreen extends GetView<HomeController> {
     );
   }
 
-  void _showPrivacyInfo(BuildContext context) {
+  void _showModelVerificationInfo(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Privacy Mode'),
+        title: const Text('Model Verification'),
         content: const Text(
-          'When enabled, all AI processing happens on-device.\n\n'
-          '• No data sent to external servers\n'
-          '• Full privacy for sensitive tasks\n'
-          '• May use more battery and storage\n'
-          '• Models run locally on your device',
+          'All downloaded models are verified using cryptographic hashes.\n\n'
+          'This ensures models haven\'t been tampered with and are the '
+          'authentic versions from the source.',
         ),
         actions: [
           TextButton(
@@ -236,6 +248,96 @@ class SettingsScreen extends GetView<HomeController> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showDownloadModelPicker(BuildContext context) {
+    // Navigate to home screen with model picker
+    Get.find<HomeController>().showModelPickerDialog();
+    Get.back(); // Go back to home
+    Get.toNamed('/'); // Navigate to home
+  }
+
+  void _showAddCustomModelDialog(BuildContext context) {
+    final repoIdController = TextEditingController();
+    final displayNameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add Custom HuggingFace Model'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: repoIdController,
+                decoration: const InputDecoration(
+                  labelText: 'HuggingFace Repo ID',
+                  hintText: 'e.g., facebook/opt-1.3b',
+                  prefixIcon: Icon(Icons.link),
+                  isDense: true,
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: displayNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Display Name',
+                  hintText: 'e.g., OPT 1.3B',
+                  prefixIcon: Icon(Icons.label),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'The SDK will download this model from HuggingFace.\n'
+                'Add variants in HuggingFaceModels.custom() if needed.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontStyle: FontStyle.italic,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: repoIdController.text.isEmpty
+                ? null
+                : () {
+                    // Add custom model to the catalog
+                    final model = HuggingFaceModels.custom(
+                      repoId: repoIdController.text.trim(),
+                      displayName: displayNameController.text.trim() ||
+                          repoIdController.text.trim(),
+                    );
+                    Get.find<HomeController>().addCustomModel(model);
+                    Navigator.of(dialogContext).pop();
+                    showSnackbar('Added: ${model.displayName}');
+                  },
+            child: const Text('Add Model'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showSnackbar(String message) {
+    Get.snackbar(
+      'AI SDK',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 2),
+      backgroundColor: AppColors.surface,
+      colorText: AppColors.onSurface,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 8,
     );
   }
 }

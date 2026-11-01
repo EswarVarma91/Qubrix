@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 import '../../core/constants/app_strings.dart';
+import '../../core/model_catalog.dart';
 import '../../core/utils/router.dart';
 import '../../data/repositories/ai_repository.dart';
 import '../../core/bindings/app_bindings.dart';
@@ -26,6 +27,9 @@ class HomeController extends GetxController {
   final _securityStatus = ''.obs;
   final _tamperWarning = false.obs;
   final _integrityStatus = ''.obs;
+  final _availableModels = <ModelCatalogEntry>[].obs;
+  final _selectedModelRepo = ''.obs;
+  final _showModelPicker = false.obs;
 
   // Getters
   String get status => _status.value;
@@ -39,12 +43,29 @@ class HomeController extends GetxController {
   String get securityStatus => _securityStatus.value;
   bool get tamperWarning => _tamperWarning.value;
   String get integrityStatus => _integrityStatus.value;
+  List<ModelCatalogEntry> get availableModels => _availableModels.value;
+  String get selectedModelRepo => _selectedModelRepo.value;
+  bool get showModelPicker => _showModelPicker.value;
 
   @override
   void onInit() {
     super.onInit();
     _checkSecurityStatus();
     _updateModelStatus();
+    _loadAvailableModels();
+  }
+
+  void _loadAvailableModels() {
+    // Load all available HuggingFace models
+    _availableModels.value = HuggingFaceModels.all;
+    if (_availableModels.isEmpty) {
+      // Fallback: add a custom model entry
+      _availableModels.add(HuggingFaceModels.custom(
+        repoId: 'microsoft/DialogGPT-small',
+        displayName: 'Custom Model',
+        description: 'Add your HuggingFace repo ID',
+      ));
+    }
   }
 
   void _checkSecurityStatus() {
@@ -105,30 +126,26 @@ class HomeController extends GetxController {
   }
 
   // Download and load model with progress
+  // Downloads a HuggingFace model by repo ID.
+  // The developer specifies which model to download.
   Future<void> downloadModel() async {
     if (_isDownloading.value) return;
 
+    final repoId = _selectedModelRepo.value;
+    if (repoId.isEmpty) {
+      // No model selected, show picker
+      _showModelPicker.value = true;
+      return;
+    }
+
     _isDownloading.value = true;
-    _setStatus('${AppStrings.downloading}...');
+    _setStatus('${AppStrings.downloading} $repoId...');
 
     try {
-      // Get the smallest suitable model
-      final deviceInfo = await _engine.compatibilityEngine.getDeviceInfo();
-      final model = await _repository.getSmallestSuitableModel(
-        TaskType.classification,
-        deviceInfo: deviceInfo,
-        minQuality: 0.8,
-      );
-
-      if (model == null) {
-        _setStatus(AppStrings.noSuitableModel);
-        _isDownloading.value = false;
-        return;
-      }
-
-      // Download with progress tracking
+      // Download the specified HuggingFace model
+      // The SDK handles discovery from the repo, variant selection, etc.
       final result = await _repository.downloadModel(
-        model.model.id,
+        repoId,
         onProgress: (progress) {
           _progress.value = progress;
           _setStatus('${progress.operation.name.toUpperCase()}: '
@@ -146,18 +163,52 @@ class HomeController extends GetxController {
 
       if (result.success) {
         _updateModelStatus();
-        _setStatus('${AppStrings.modelReady}: '
-            '${(result.bytesDownloaded ?? 0)} bytes in '
-            '${(result.duration?.inSeconds ?? 0)}s');
+        _setStatus('${AppStrings.modelReady}: $repoId '
+            '(${(result.bytesDownloaded ?? 0)} bytes in '
+            '${(result.duration?.inSeconds ?? 0)}s)');
+        _showModelPicker.value = false;
       } else {
         _setStatus('${AppStrings.taskFailed}: ${result.errorMessage}');
+        _showModelPicker.value = false;
       }
     } catch (e) {
       _setStatus('Error: $e');
+      _showModelPicker.value = false;
     } finally {
       _isDownloading.value = false;
       _progress.value = null;
     }
+  }
+
+  // Select a model to download
+  void selectModel(ModelCatalogEntry model) {
+    _selectedModelRepo.value = model.repoId;
+    _showModelPicker.value = false;
+    _setStatus('Selected: ${model.displayName} (${_selectedModelRepo.value})');
+  }
+
+  // Show model picker dialog
+  void showModelPickerDialog() {
+    _selectedModelRepo.value = '';
+    _showModelPicker.value = true;
+  }
+
+  // Set model picker visibility
+  void setShowModelPicker(bool show) {
+    _showModelPicker.value = show;
+  }
+
+  // Add a custom model to the available models list
+  void addCustomModel(ModelCatalogEntry model) {
+    // Remove existing model with same repo ID if present
+    _availableModels.removeWhere((m) => m.repoId == model.repoId);
+    _availableModels.add(model);
+    _availableModels.refresh();
+  }
+
+  // Set selected model by repo ID
+  void setSelectedModel(String repoId) {
+    _selectedModelRepo.value = repoId;
   }
 
   // Run a task
