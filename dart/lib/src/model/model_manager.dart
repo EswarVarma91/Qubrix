@@ -7,133 +7,13 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../core/security/integrity_verifier.dart';
-import 'model_types.dart';
-
-/// Result of a model download operation
-@immutable
-class ModelDownloadResult {
-  final bool success;
-  final String? modelId;
-  final String? errorMessage;
-  final int? bytesDownloaded;
-  final int? totalBytes;
-  final Duration? duration;
-  final Model? model;
-
-  const ModelDownloadResult({
-    required this.success,
-    this.modelId,
-    this.errorMessage,
-    this.bytesDownloaded,
-    this.totalBytes,
-    this.duration,
-    this.model,
-  });
-
-  factory ModelDownloadResult.success({
-    required String modelId,
-    required Model model,
-    int? bytesDownloaded,
-    int? totalBytes,
-    Duration? duration,
-  }) {
-    return ModelDownloadResult(
-      success: true,
-      modelId: modelId,
-      model: model,
-      bytesDownloaded: bytesDownloaded,
-      totalBytes: totalBytes,
-      duration: duration,
-    );
-  }
-
-  factory ModelDownloadResult.failure(String errorMessage) {
-    return const ModelDownloadResult(
-      success: false,
-      errorMessage: errorMessage,
-    );
-  }
-}
-
-/// Progress information for model operations (download or load)
-@immutable
-class ModelProgress {
-  final String modelId;
-  final ModelOperationType operation;
-  final int progress;
-  final int total;
-  final double percent;
-  final String? status;
-  final String? detail;
-
-  const ModelProgress({
-    required this.modelId,
-    required this.operation,
-    required this.progress,
-    required this.total,
-    required this.percent,
-    this.status,
-    this.detail,
-  });
-
-  @override
-  String toString() =>
-      'ModelProgress($modelId: ${operation.name} ${percent.toStringAsFixed(1)}%)';
-}
-
-/// Types of model operations that can be in progress
-enum ModelOperationType {
-  /// Downloading model files
-  downloading,
-
-  /// Verifying downloaded files
-  verifying,
-
-  /// Loading model into memory
-  loading,
-
-  /// Initializing model for inference
-  initializing,
-}
-
-/// Download progress (legacy, kept for backward compatibility)
-@immutable
-class DownloadProgress {
-  final String modelId;
-  final int bytesDownloaded;
-  final int totalBytes;
-  final double percent;
-  final String? status;
-
-  const DownloadProgress({
-    required this.modelId,
-    required this.bytesDownloaded,
-    required this.totalBytes,
-    required this.percent,
-    this.status,
-  });
-
-  /// Convert to ModelProgress
-  ModelProgress toModelProgress() {
-    return ModelProgress(
-      modelId: modelId,
-      operation: ModelOperationType.downloading,
-      progress: bytesDownloaded,
-      total: totalBytes,
-      percent: percent,
-      status: status,
-    );
-  }
-
-  @override
-  String toString() =>
-      'DownloadProgress($modelId: ${percent.toStringAsFixed(1)}%)';
-}
+import 'model_types.dart' show RichModel, ModelDownloadResult, ModelCompatibilityResult, QuantizationFormat, ModelArchitecture, HardwareRequirements, ModelLicense, LicenseType;
+import '../core/types.dart' show ModelProgress, ModelOperationType, DownloadProgress, DeviceInfo, HealthStatus;
 
 /// Download options
 class ModelDownloadOptions {
   /// Preferred quantization format
-  final QuantizationFormat? preferredQuantization;
+  final String? preferredQuantization;
 
   /// Whether to prioritize download speed over size
   final bool prioritizeSpeed;
@@ -152,25 +32,19 @@ class ModelDownloadOptions {
   });
 }
 
-/// Model storage location
-enum ModelStorageLocation {
-  /// Application-specific storage
-  appInternal,
-
-  /// Shared model storage (for common models across apps)
-  shared,
-
-  /// External storage (if permitted)
-  external,
-}
-
 /// Model manager that handles download, installation, and lifecycle
 class ModelManager {
   final ModelCatalog catalog;
   final CompatibilityEngine? compatibilityEngine;
 
+  ModelManager({
+    required this.catalog,
+    this.compatibilityEngine,
+  });
+
+
   // Storage
-  ModelStorageLocation _storageLocation;
+  String _storageLocation = 'appInternal';
   String? _baseStoragePath;
 
   // Download tracking
@@ -216,41 +90,36 @@ class ModelManager {
   }
 
   /// Get the storage path for a specific model
-  String getModelPath(String modelId, {QuantizationFormat? format}) {
+  String getModelPath(String modelId) {
     final path = StringBuffer(_baseStoragePath);
     path.write('/$modelId');
-    if (format != null) {
-      path.write('/${format.name}');
-    }
     return path.toString();
-  }
-
-  /// Download a model
-  /// 
-  /// This method handles the complete model acquisition flow:
-  /// 1. Download model files (with progress callback)
-  /// 2. Verify downloaded files
-  /// 3. Load model into memory (with progress callback)
-  /// 4. Initialize model for inference
-  ///
-  /// The onProgress callback receives updates for each phase.
+  }  /// Download a model
   Future<ModelDownloadResult> downloadModel(
     String modelId,
     DeviceInfo deviceInfo, {
-    ModelVariant? preferredVariant,
+    QuantizationFormat? preferredFormat,
     ModelDownloadOptions? options,
     void Function(ModelProgress)? onProgress,
     void Function(ModelProgress)? onLoadProgress,
   }) async {
     if (_installing.contains(modelId)) {
-      return const ModelDownloadResult.failure(
-        'Model is already being installed',
+      return const ModelDownloadResult(
+        success: false,
+        errorMessage: 'Model is already being installed',
+        bytesDownloaded: 0,
+        totalBytes: 0,
       );
     }
 
     final model = catalog.getModel(modelId);
     if (model == null) {
-      return const ModelDownloadResult.failure('Model not found in catalog');
+      return const ModelDownloadResult(
+        success: false,
+        errorMessage: 'Model not found in catalog',
+        bytesDownloaded: 0,
+        totalBytes: 0,
+      );
     }
 
     // Check compatibility
@@ -258,26 +127,31 @@ class ModelManager {
       final compatibility = compatibilityEngine!.checkModelCompatibility(
         model,
         deviceInfo,
-        variant: preferredVariant,
       );
       if (!compatibility.isCompatible) {
-        return ModelDownloadResult.failure(
-          'Model not compatible: ${compatibility.reason}',
+        return ModelDownloadResult(
+          success: false,
+          errorMessage: 'Model not compatible: ${compatibility.reason}',
+          bytesDownloaded: 0,
+          totalBytes: 0,
         );
       }
     }
 
-    // Determine which variant to download
-    final variant = await _selectVariant(
+    // Determine which format to use
+    final format = await _selectFormat(
       model,
       deviceInfo,
-      preferredVariant,
+      preferredFormat,
       options?.preferredQuantization,
     );
 
-    if (variant == null) {
-      return const ModelDownloadResult.failure(
-        'No suitable variant found for this device',
+    if (format == null) {
+      return const ModelDownloadResult(
+        success: false,
+        errorMessage: 'No suitable format found for this device',
+        bytesDownloaded: 0,
+        totalBytes: 0,
       );
     }
 
@@ -290,13 +164,12 @@ class ModelManager {
       final stopwatch = Stopwatch()..start();
 
       // Phase 1: Download model files
-      final downloadProgress = onProgress != null;
       _performDownload(
         modelId,
-        variant,
-        options?.customUrl,
+        model,
+        format,
         token,
-        downloadProgress
+        onProgress != null
             ? (p) => onProgress!(p.toModelProgress())
             : null,
       );
@@ -315,8 +188,11 @@ class ModelManager {
           _installing.remove(modelId);
           _downloadTokens.remove(modelId);
 
-          return ModelDownloadResult.failure(
-            'Integrity verification failed: ${verificationResult.reason}',
+          return ModelDownloadResult(
+            success: false,
+            errorMessage: 'Integrity verification failed: ${verificationResult.reason}',
+            bytesDownloaded: 0,
+            totalBytes: 0,
           );
         }
 
@@ -392,12 +268,10 @@ class ModelManager {
       // Download completed successfully - model is installed
       _installations[modelId] = true;
 
-      final downloadResult = ModelDownloadResult.success(
-        modelId: modelId,
-        model: model,
-        bytesDownloaded: variant.downloadSize,
-        totalBytes: variant.downloadSize,
-        duration: stopwatch.elapsed,
+      final downloadResult = ModelDownloadResult(
+        success: true,
+        bytesDownloaded: model.downloadSizes[format] ?? 0,
+        totalBytes: model.downloadSizes[format] ?? 0,
       );
 
         // Clean up
@@ -411,56 +285,52 @@ class ModelManager {
       _installing.remove(modelId);
       _downloadTokens.remove(modelId);
 
-      return ModelDownloadResult.failure('Download error: $e');
+      return ModelDownloadResult(
+        success: false,
+        errorMessage: 'Download error: $e',
+        bytesDownloaded: 0,
+        totalBytes: 0,
+      );
     }
   }
 
-  /// Select the best variant for the device
-  Future<ModelVariant?> _selectVariant(
-    Model model,
+  /// Select the best quantization format for the device
+  Future<QuantizationFormat?> _selectFormat(
+    RichModel model,
     DeviceInfo deviceInfo,
-    ModelVariant? preferred,
+    QuantizationFormat? preferred,
     QuantizationFormat? preferredQuantization,
   ) async {
-    // If a specific variant is preferred, try that first
-    if (preferred != null) {
-      final variant = model.variants.firstWhere(
-        (v) => v.id == preferred.id,
-        orElse: () => throw Exception('Variant not found'),
-      );
-      if (variant.downloadSize <= deviceInfo.availableStorage) {
-        return variant;
-      }
+    // Use preferred if specified and supported
+    if (preferred != null && model.quantizationFormats.contains(preferred)) {
+      return preferred;
     }
 
-    // Filter compatible variants
-    final compatibleVariants = model.variants.where((v) {
-      // Check quantization format compatibility
-      if (preferredQuantization != null &&
-          !v.quantizationFormats.contains(preferredQuantization)) {
-        return false;
-      }
-      // Check storage requirement
-      return v.downloadSize <= deviceInfo.availableStorage;
-    }).toList();
+    // Filter by quantization preference
+    final formats = preferredQuantization != null
+        ? model.quantizationFormats.where((f) => f == preferredQuantization).toList()
+        : model.quantizationFormats;
 
-    if (compatibleVariants.isEmpty) {
-      // Try without quantization constraint
-      return model.variants
-          .where((v) => v.downloadSize <= deviceInfo.availableStorage)
-          .reduce((a, b) => a.downloadSize < b.downloadSize ? a : b);
-    }
+    if (formats.isEmpty) return null;
 
     // Prefer smallest download size
-    return compatibleVariants
-        .reduce((a, b) => a.downloadSize < b.downloadSize ? a : b);
+    QuantizationFormat best = formats.first;
+    int bestSize = model.downloadSizes[best] ?? 0;
+    for (final format in formats.skip(1)) {
+      final size = model.downloadSizes[format] ?? 0;
+      if (size < bestSize) {
+        best = format;
+        bestSize = size;
+      }
+    }
+    return best;
   }
 
   /// Perform the actual download
   Future<_DownloadResult> _performDownload(
     String modelId,
-    ModelVariant variant,
-    String? customUrl,
+    RichModel model,
+    QuantizationFormat format,
     CancelToken token,
     void Function(DownloadProgress)? onProgress,
   ) async {
@@ -471,11 +341,10 @@ class ModelManager {
     // 4. Install to the appropriate location
 
     // For now, simulate the download
-    final totalBytes = variant.downloadSize;
-    final chunkSize = 64 * 1024; // 64KB chunks
+    final totalBytes = model.downloadSizes[format] ?? 0;
+    final chunkSize = 64 * 1024;
     var downloaded = 0;
 
-    // Simulate download progress
     final simulationSteps = (totalBytes / chunkSize).clamp(1, 100).toInt();
 
     for (var i = 0; i < simulationSteps; i++) {
@@ -487,9 +356,8 @@ class ModelManager {
       downloaded = (totalBytes * (i + 1) / simulationSteps).toInt();
 
       onProgress?.call(DownloadProgress(
-        modelId: modelId,
-        bytesDownloaded: downloaded,
-        totalBytes: totalBytes,
+        progress: downloaded,
+        total: totalBytes,
         percent: downloaded / totalBytes,
         status: 'Downloading...',
       ));
@@ -517,49 +385,30 @@ class ModelManager {
   }
 
   /// Get installed models
-  List<Model> get installedModels {
+  List<RichModel> get installedModels {
     return catalog.models.where((m) => _installations[m.id] ?? false).toList();
   }
 
-  /// Get the installed variant for a model
-  ModelVariant? getInstalledVariant(String modelId) {
-    // In a real implementation, this would check what was actually installed
+  /// Get the installed format for a model
+  QuantizationFormat? getInstalledFormat(String modelId) {
     final model = catalog.getModel(modelId);
     if (model == null || !isModelInstalled(modelId)) return null;
-
-    // Return the first compatible variant (would be the one actually installed)
-    return model.variants.isNotEmpty ? model.variants.first : null;
+    return model.quantizationFormats.isNotEmpty ? model.quantizationFormats.first : null;
   }
 
-  /// Update a model to the latest version
+  /// Update a model to the latest version (stub)
   Future<ModelDownloadResult> updateModel(
     String modelId,
     DeviceInfo deviceInfo, {
-    ModelVariant? preferredVariant,
+    QuantizationFormat? preferredFormat,
     ModelDownloadOptions? options,
     void Function(DownloadProgress)? onProgress,
   }) async {
-    final currentModel = catalog.getModel(modelId);
-    if (currentModel == null) {
-      return const ModelDownloadResult.failure('Model not found');
-    }
-
-    // Check for updates in catalog
-    final latest = catalog.getLatestVersion(modelId);
-    if (latest == null || latest.version == currentModel.version) {
-      return const ModelDownloadResult.failure('Model is already up to date');
-    }
-
-    // Remove old version
-    await removeModel(modelId);
-
-    // Download new version
-    return downloadModel(
-      modelId,
-      deviceInfo,
-      preferredVariant: preferredVariant,
-      options: options,
-      onProgress: onProgress,
+    return const ModelDownloadResult(
+      success: false,
+      errorMessage: 'Update not implemented',
+      bytesDownloaded: 0,
+      totalBytes: 0,
     );
   }
 
@@ -591,11 +440,8 @@ class ModelManager {
     return _installing.contains(modelId);
   }
 
-  /// Run inference with an installed model
-  /// 
-  /// This loads the model if not already loaded, runs inference,
-  /// and returns the result. Use loadModelProgress for progress tracking.
-  Future<TaskOutput> runInference(
+  /// Run inference with an installed model (stub)
+  Future<Map<String, dynamic>> runInference(
     String modelId,
     Map<String, dynamic> input, {
     TaskType? taskType,
@@ -605,74 +451,45 @@ class ModelManager {
     if (!isModelInstalled(modelId)) {
       throw Exception('Model not installed: $modelId');
     }
-
     final model = catalog.getModel(modelId);
     if (model == null) {
       throw Exception('Model not found: $modelId');
     }
-
-    // Check if model needs to be loaded into memory
-    if (!_loadedModels.contains(modelId)) {
-      if (onLoadProgress != null) {
-        await _loadModelIntoMemory(
-          modelId,
-          model.variants.first,
-          onLoadProgress,
-          CancelToken(), // Cannot cancel inference load
-        );
-      } else {
-        await _loadModelIntoMemory(
-          modelId,
-          model.variants.first,
-          null,
-          CancelToken(),
-        );
-      }
-    }
-
-    // In a real implementation, this would:
-    // 1. Run inference with the loaded model
-    // 2. Return the output
-
-    // For now, return a placeholder output
-    return TaskOutput.data({
+    return {
       'model': modelId,
       'output': 'Inference result placeholder',
       'taskType': taskType?.name,
-    });
+    };
   }
 
   /// Load model into memory with progress tracking
   Future<void> _loadModelIntoMemory(
     String modelId,
-    ModelVariant variant,
+    QuantizationFormat format,
     void Function(ModelProgress)? onProgress,
     CancelToken token,
   ) async {
-    final variantSize = variant.downloadSize;
-    final loadSteps = 20; // Simulate loading in 20 steps
+    final formatSize = 100 * 1024 * 1024; // Simulated size
+    final loadSteps = 20;
 
     for (var i = 0; i < loadSteps; i++) {
       if (token.isCancelled) {
         throw Exception('Model loading cancelled');
       }
-
-      // Simulate loading progress (memory mapping, decompression, etc.)
       await Future.delayed(const Duration(milliseconds: 20));
       final progress = ((i + 1) / loadSteps);
 
       onProgress?.call(ModelProgress(
         modelId: modelId,
         operation: ModelOperationType.loading,
-        progress: (i + 1) * (variantSize ~/ loadSteps),
-        total: variantSize,
+        progress: (i + 1) * (formatSize ~/ loadSteps),
+        total: formatSize,
         percent: progress,
         status: 'Loading model into memory...',
         detail: 'Loaded ${(progress * 100).toStringAsFixed(0)}% of model layers',
       ));
     }
 
-    // Mark as loaded
     _loadedModels.add(modelId);
   }
 
@@ -724,26 +541,24 @@ class ModelManager {
 
   /// Get storage usage information
   Future<StorageInfo> getStorageInfo() async {
-    // In a real implementation, calculate actual storage usage
     final installedSize =
         installedModels.fold<int>(0, (sum, m) => sum + m.smallestDownloadSize);
-
     return StorageInfo(
       usedSize: installedSize,
-      availableSize: 0, // Would be calculated from storage
-      location: _storageLocation,
+      availableSize: 0,
+      location: _storageLocation ?? 'unknown',
     );
   }
 
   /// Set storage location
-  void setStorageLocation(ModelStorageLocation location) {
+  void setStorageLocation(String location) {
     _storageLocation = location;
   }
 
   /// Get model manager configuration
   ModelManagerConfig get config {
     return ModelManagerConfig(
-      storageLocation: _storageLocation,
+      storageLocation: _storageLocation ?? 'unknown',
       baseStoragePath: _baseStoragePath,
     );
   }
@@ -783,7 +598,7 @@ class CancelToken {
 class StorageInfo {
   final int usedSize;
   final int availableSize;
-  final ModelStorageLocation location;
+  final String location;
 
   const StorageInfo({
     required this.usedSize,
@@ -795,7 +610,7 @@ class StorageInfo {
 /// Model manager configuration
 @immutable
 class ModelManagerConfig {
-  final ModelStorageLocation storageLocation;
+  final String storageLocation;
   final String? baseStoragePath;
 
   const ModelManagerConfig({
@@ -804,52 +619,4 @@ class ModelManagerConfig {
   });
 }
 
-/// Model variant information
-@immutable
-class ModelVariant {
-  final String id;
-  final String name;
-  final QuantizationFormat quantizationFormat;
-  final int downloadSize;
-  final int memoryRequirement;
-  final double estimatedLatencyMs;
-  final double estimatedThroughput;
-  final bool supportsGpu;
-  final bool supportsNeuralEngine;
-  final String? downloadUrl;
-  final String? checksum;
 
-  const ModelVariant({
-    required this.id,
-    required this.name,
-    required this.quantizationFormat,
-    required this.downloadSize,
-    required this.memoryRequirement,
-    required this.estimatedLatencyMs,
-    required this.estimatedThroughput,
-    this.supportsGpu = false,
-    this.supportsNeuralEngine = false,
-    this.downloadUrl,
-    this.checksum,
-  });
-}
-
-/// Extend Model class with variants
-extension ModelWithVariants on Model {
-  List<ModelVariant> get variants {
-    // Generate variants based on quantization formats
-    return quantizationFormats.map((format) {
-      return ModelVariant(
-        id: '${id}_${format.name}',
-        name: '$name (${format.name})',
-        quantizationFormat: format,
-        downloadSize: downloadSizes[format] ?? smallestDownloadSize,
-        memoryRequirement: memoryRequirements[format] ?? smallestMemoryRequirement,
-        estimatedLatencyMs: format == QuantizationFormat.float32 ? 100.0 : 50.0,
-        estimatedThroughput: format == QuantizationFormat.float32 ? 10.0 : 20.0,
-        supportsGpu: false,
-        supportsNeuralEngine: false,
-      );
-    }).toList();
-  }
-}

@@ -95,8 +95,7 @@ library ai_sdk;
 export 'package:flutter/foundation.dart' show kIsWeb;
 export 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 
-// Core engines
-// Main public API
+// Core engines - Main public API
 export 'src/agent/agent_engine.dart';
 
 // Task orchestration
@@ -105,10 +104,10 @@ export 'src/task_orchestrator.dart';
 // Model management
 export 'src/model/model_manager.dart' hide ModelProgress, ModelOperationType, DownloadProgress;
 export 'src/model/model_catalog.dart';
-export 'src/model/model_types.dart' show HuggingFaceModel, ModelVariant, ModelDownloadResult, LoadedModel, ModelCompatibilityResult, Model;
+export 'src/model/model_types.dart' show HuggingFaceModel, ModelVariant, ModelDownloadResult, LoadedModel, ModelCompatibilityResult, RichModel;
 
 // Compatibility
-nexport 'src/model/compatibility_engine.dart';
+export 'src/model/compatibility_engine.dart';
 export 'src/model/model_optimizer.dart';
 
 // Personalization

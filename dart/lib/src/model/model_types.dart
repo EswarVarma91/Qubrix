@@ -183,3 +183,145 @@ class ModelCompatibilityResult {
     );
   }
 }
+
+/// Quantization format for model variants.
+enum QuantizationFormat {
+  float32,
+  float16,
+  int8,
+  int4,
+  gguf,
+  unknown,
+}
+
+/// Model architecture type.
+enum ModelArchitecture {
+  transformer,
+  lstm,
+  cnn,
+  specialized,
+  statistical,
+  unknown,
+}
+
+/// Device class for model compatibility.
+enum DeviceClass {
+  lowEnd,
+  midRange,
+  highEnd,
+  unknown,
+}
+
+/// License type.
+enum LicenseType {
+  permissive,
+  copyleft,
+  proprietary,
+  unknown,
+}
+
+/// Model license info.
+class ModelLicense {
+  final LicenseType type;
+  final String name;
+  final bool allowsCommercialUse;
+  final bool allowsModification;
+  final bool requiresAttribution;
+
+  const ModelLicense({
+    required this.type,
+    required this.name,
+    this.allowsCommercialUse = true,
+    this.allowsModification = true,
+    this.requiresAttribution = true,
+  });
+}
+
+/// Hardware requirements for a model.
+class HardwareRequirements {
+  final int minRamMb;
+  final int? recommendedRamMb;
+  final int minStorageMb;
+  final bool supportsLowEndDevices;
+  final bool supportsNeuralEngine;
+  final bool supportsGpu;
+
+  const HardwareRequirements({
+    required this.minRamMb,
+    this.recommendedRamMb,
+    required this.minStorageMb,
+    this.supportsLowEndDevices = false,
+    this.supportsNeuralEngine = false,
+    this.supportsGpu = false,
+  });
+
+  bool meetsMinimumRequirements(DeviceInfo deviceInfo) {
+    return deviceInfo.totalMemory >= minRamMb * 1024 * 1024 &&
+        deviceInfo.availableStorage >= minStorageMb * 1024 * 1024;
+  }
+}
+
+/// Rich Model class with full metadata.
+class RichModel {
+  final String id;
+  final String name;
+  final String description;
+  final String version;
+  final ModelArchitecture architecture;
+  final List<QuantizationFormat> quantizationFormats;
+  final Map<QuantizationFormat, int> downloadSizes;
+  final Map<QuantizationFormat, int> memoryRequirements;
+  final List<TaskType> supportedTaskTypes;
+  final HardwareRequirements hardwareRequirements;
+  final ModelLicense license;
+  final bool isEdgeModel;
+
+  const RichModel({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.version,
+    required this.architecture,
+    required this.quantizationFormats,
+    required this.downloadSizes,
+    required this.memoryRequirements,
+    required this.supportedTaskTypes,
+    required this.hardwareRequirements,
+    required this.license,
+    this.isEdgeModel = false,
+  });
+
+  int get smallestDownloadSize => downloadSizes.values.reduce((a, b) => a < b ? a : b);
+  int get smallestMemoryRequirement => memoryRequirements.values.reduce((a, b) => a < b ? a : b);
+  int get availableStorage => 0;
+
+  RichModel copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? version,
+    ModelArchitecture? architecture,
+    List<QuantizationFormat>? quantizationFormats,
+    Map<QuantizationFormat, int>? downloadSizes,
+    Map<QuantizationFormat, int>? memoryRequirements,
+    List<TaskType>? supportedTaskTypes,
+    HardwareRequirements? hardwareRequirements,
+    ModelLicense? license,
+    bool? isEdgeModel,
+  }) {
+    return RichModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      version: version ?? this.version,
+      architecture: architecture ?? this.architecture,
+      quantizationFormats: quantizationFormats ?? this.quantizationFormats,
+      downloadSizes: downloadSizes ?? this.downloadSizes,
+      memoryRequirements: memoryRequirements ?? this.memoryRequirements,
+      supportedTaskTypes: supportedTaskTypes ?? this.supportedTaskTypes,
+      hardwareRequirements: hardwareRequirements ?? this.hardwareRequirements,
+      license: license ?? this.license,
+      isEdgeModel: isEdgeModel ?? this.isEdgeModel,
+    );
+  }
+}

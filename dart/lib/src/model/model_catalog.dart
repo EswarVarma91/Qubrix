@@ -4,11 +4,12 @@
 /// Stores model metadata, benchmarks, and performance characteristics.
 
 import 'package:flutter/foundation.dart';
-import 'model_types.dart';
+import 'model_types.dart' show RichModel, ModelBenchmark, QuantizationFormat, ModelArchitecture, HardwareRequirements, ModelLicense, LicenseType, DeviceClass;
+import '../core/types.dart' show TaskType, DeviceInfo;
 
 /// Model catalog that maintains the validated model inventory
 class ModelCatalog {
-  final List<Model> _models = [];
+  final List<RichModel> _models = [];
   final Map<String, ModelBenchmark> _benchmarks = {};
 
   /// Initialize with built-in models
@@ -18,11 +19,7 @@ class ModelCatalog {
 
   /// Initialize built-in model catalog
   void _initializeBuiltInModels() {
-    // Add built-in models for demonstration
-    // In a real implementation, these would come from a remote catalog
-
-    // Small classification model
-    _models.add(Model(
+    _models.add(RichModel(
       id: 'small-classifier',
       name: 'Small Classifier',
       description: 'Lightweight text classification model for simple categorization tasks',
@@ -33,12 +30,12 @@ class ModelCatalog {
         QuantizationFormat.int4,
       ],
       downloadSizes: const {
-        QuantizationFormat.int8: 15 * 1024 * 1024, // 15 MB
-        QuantizationFormat.int4: 8 * 1024 * 1024, // 8 MB
+        QuantizationFormat.int8: 15 * 1024 * 1024,
+        QuantizationFormat.int4: 8 * 1024 * 1024,
       },
       memoryRequirements: const {
-        QuantizationFormat.int8: 50 * 1024 * 1024, // 50 MB
-        QuantizationFormat.int4: 30 * 1024 * 1024, // 30 MB
+        QuantizationFormat.int8: 50 * 1024 * 1024,
+        QuantizationFormat.int4: 30 * 1024 * 1024,
       },
       supportedTaskTypes: const [
         TaskType.classification,
@@ -57,8 +54,7 @@ class ModelCatalog {
       isEdgeModel: true,
     ));
 
-    // Medium summarization model
-    _models.add(Model(
+    _models.add(RichModel(
       id: 'medium-summarizer',
       name: 'Medium Summarizer',
       description: 'Text summarization model for document and conversation summaries',
@@ -69,12 +65,12 @@ class ModelCatalog {
         QuantizationFormat.int8,
       ],
       downloadSizes: const {
-        QuantizationFormat.float16: 150 * 1024 * 1024, // 150 MB
-        QuantizationFormat.int8: 80 * 1024 * 1024, // 80 MB
+        QuantizationFormat.float16: 150 * 1024 * 1024,
+        QuantizationFormat.int8: 80 * 1024 * 1024,
       },
       memoryRequirements: const {
-        QuantizationFormat.float16: 200 * 1024 * 1024, // 200 MB
-        QuantizationFormat.int8: 120 * 1024 * 1024, // 120 MB
+        QuantizationFormat.float16: 200 * 1024 * 1024,
+        QuantizationFormat.int8: 120 * 1024 * 1024,
       },
       supportedTaskTypes: const [
         TaskType.summarization,
@@ -93,8 +89,7 @@ class ModelCatalog {
       ),
     ));
 
-    // Small language model for general tasks
-    _models.add(Model(
+    _models.add(RichModel(
       id: 'small-language',
       name: 'Small Language Model',
       description: 'Compact language model for general text understanding and generation',
@@ -106,20 +101,20 @@ class ModelCatalog {
         QuantizationFormat.gguf,
       ],
       downloadSizes: const {
-        QuantizationFormat.int8: 350 * 1024 * 1024, // 350 MB
-        QuantizationFormat.int4: 180 * 1024 * 1024, // 180 MB
-        QuantizationFormat.gguf: 200 * 1024 * 1024, // 200 MB
+        QuantizationFormat.int8: 350 * 1024 * 1024,
+        QuantizationFormat.int4: 180 * 1024 * 1024,
+        QuantizationFormat.gguf: 200 * 1024 * 1024,
       },
       memoryRequirements: const {
-        QuantizationFormat.int8: 500 * 1024 * 1024, // 500 MB
-        QuantizationFormat.int4: 300 * 1024 * 1024, // 300 MB
-        QuantizationFormat.gguf: 350 * 1024 * 1024, // 350 MB
+        QuantizationFormat.int8: 500 * 1024 * 1024,
+        QuantizationFormat.int4: 300 * 1024 * 1024,
+        QuantizationFormat.gguf: 350 * 1024 * 1024,
       },
       supportedTaskTypes: const [
         TaskType.classification,
         TaskType.extraction,
         TaskType.summarization,
-        TaskType.processing,
+        TaskType.generation,
       ],
       hardwareRequirements: const HardwareRequirements(
         minRamMb: 512,
@@ -136,8 +131,7 @@ class ModelCatalog {
       isEdgeModel: true,
     ));
 
-    // Larger language model for complex tasks
-    _models.add(Model(
+    _models.add(RichModel(
       id: 'medium-language',
       name: 'Medium Language Model',
       description: 'More capable language model for complex reasoning and generation',
@@ -148,20 +142,19 @@ class ModelCatalog {
         QuantizationFormat.int8,
       ],
       downloadSizes: const {
-        QuantizationFormat.float16: 1500 * 1024 * 1024, // 1.5 GB
-        QuantizationFormat.int8: 800 * 1024 * 1024, // 800 MB
+        QuantizationFormat.float16: 1500 * 1024 * 1024,
+        QuantizationFormat.int8: 800 * 1024 * 1024,
       },
       memoryRequirements: const {
-        QuantizationFormat.float16: 2000 * 1024 * 1024, // 2 GB
-        QuantizationFormat.int8: 1200 * 1024 * 1024, // 1.2 GB
+        QuantizationFormat.float16: 2000 * 1024 * 1024,
+        QuantizationFormat.int8: 1200 * 1024 * 1024,
       },
       supportedTaskTypes: const [
         TaskType.classification,
         TaskType.extraction,
         TaskType.summarization,
         TaskType.generation,
-        TaskType.planning,
-        TaskType.complexReasoning,
+        TaskType.completion,
       ],
       hardwareRequirements: const HardwareRequirements(
         minRamMb: 2048,
@@ -177,8 +170,7 @@ class ModelCatalog {
       ),
     ));
 
-    // Ultra-small statistical model
-    _models.add(Model(
+    _models.add(RichModel(
       id: 'nano-stats',
       name: 'Nano Statistics',
       description: 'Tiny statistical model for basic pattern detection and statistics',
@@ -188,14 +180,14 @@ class ModelCatalog {
         QuantizationFormat.int8,
       ],
       downloadSizes: const {
-        QuantizationFormat.int8: 500 * 1024, // 500 KB
+        QuantizationFormat.int8: 500 * 1024,
       },
       memoryRequirements: const {
-        QuantizationFormat.int8: 10 * 1024 * 1024, // 10 MB
+        QuantizationFormat.int8: 10 * 1024 * 1024,
       },
       supportedTaskTypes: const [
-        TaskType.statistics,
-        TaskType.patternDetection,
+        TaskType.classification,
+        TaskType.extraction,
       ],
       hardwareRequirements: const HardwareRequirements(
         minRamMb: 32,
@@ -212,10 +204,10 @@ class ModelCatalog {
   }
 
   /// Get all models in the catalog
-  List<Model> get models => List.unmodifiable(_models);
+  List<RichModel> get models => List.unmodifiable(_models);
 
   /// Get a model by ID
-  Model? getModel(String modelId) {
+  RichModel? getModel(String modelId) {
     try {
       return _models.firstWhere((m) => m.id == modelId);
     } catch (e) {
@@ -224,7 +216,7 @@ class ModelCatalog {
   }
 
   /// Get the latest version of a model
-  Model? getLatestVersion(String modelId) {
+  RichModel? getLatestVersion(String modelId) {
     final versions = _models
         .where((m) => m.id == modelId)
         .toList()
@@ -233,7 +225,7 @@ class ModelCatalog {
   }
 
   /// Get models that support a specific task type
-  List<Model> getModelsForTask(TaskType taskType) {
+  List<RichModel> getModelsForTask(TaskType taskType) {
     return _models
         .where((m) => m.supportedTaskTypes.contains(taskType))
         .toList()
@@ -241,14 +233,14 @@ class ModelCatalog {
   }
 
   /// Get models compatible with a device
-  List<Model> getModelsForDevice(DeviceInfo deviceInfo) {
+  List<RichModel> getModelsForDevice(DeviceInfo deviceInfo) {
     return _models.where((model) {
       return model.hardwareRequirements.meetsMinimumRequirements(deviceInfo);
     }).toList();
   }
 
   /// Get models in a size range
-  List<Model> getModelsInSizeRange({
+  List<RichModel> getModelsInSizeRange({
     int? minSizeBytes,
     int? maxSizeBytes,
     QuantizationFormat? format,
@@ -263,7 +255,7 @@ class ModelCatalog {
   }
 
   /// Search models by name or description
-  List<Model> searchModels(String query) {
+  List<RichModel> searchModels(String query) {
     final lowerQuery = query.toLowerCase();
     return _models.where((model) {
       return model.name.toLowerCase().contains(lowerQuery) ||
@@ -272,11 +264,9 @@ class ModelCatalog {
   }
 
   /// Add a custom model to the catalog
-  void addModel(Model model) {
-    // Check if model with same ID exists
+  void addModel(RichModel model) {
     final existingIndex = _models.indexWhere((m) => m.id == model.id);
     if (existingIndex >= 0) {
-      // Replace if new version is higher
       if (_models[existingIndex].version.compareTo(model.version) < 0) {
         _models[existingIndex] = model;
       }
@@ -312,14 +302,13 @@ class ModelCatalog {
   int get modelCount => _models.length;
 
   /// Get models grouped by task type
-  Map<TaskType, List<Model>> getModelsByTask() {
-    final grouped = <TaskType, List<Model>>{};
+  Map<TaskType, List<RichModel>> getModelsByTask() {
+    final grouped = <TaskType, List<RichModel>>{};
     for (final model in _models) {
       for (final taskType in model.supportedTaskTypes) {
         grouped.putIfAbsent(taskType, () => []).add(model);
       }
     }
-    // Sort each group by size
     for (final list in grouped.values) {
       list.sort((a, b) => a.smallestDownloadSize.compareTo(b.smallestDownloadSize));
     }
@@ -327,14 +316,14 @@ class ModelCatalog {
   }
 
   /// Get the smallest model for a task
-  Model? getSmallestModelForTask(TaskType taskType) {
+  RichModel? getSmallestModelForTask(TaskType taskType) {
     final candidates = getModelsForTask(taskType);
     if (candidates.isEmpty) return null;
     return candidates.first;
   }
 
   /// Get models that support a specific quantization format
-  List<Model> getModelsWithQuantization(QuantizationFormat format) {
+  List<RichModel> getModelsWithQuantization(QuantizationFormat format) {
     return _models.where((m) => m.quantizationFormats.contains(format)).toList();
   }
 
@@ -357,6 +346,12 @@ class ModelCatalog {
       }).toList(),
     };
   }
+
+  /// Get a model by ID (alias for getModel)
+  RichModel? model(String id) => getModel(id);
+
+  /// Get all model IDs
+  List<String> get modelIds => _models.map((m) => m.id).toList();
 }
 
 /// Benchmark results for a model
@@ -496,7 +491,7 @@ class ModelBenchmark {
       ),
       taskType: TaskType.values.firstWhere(
         (e) => e.name == json['taskType'],
-        orElse: () => TaskType.processing,
+        orElse: () => TaskType.completion,
       ),
       accuracy: (json['accuracy'] as num).toDouble(),
       precision: (json['precision'] as num).toDouble(),

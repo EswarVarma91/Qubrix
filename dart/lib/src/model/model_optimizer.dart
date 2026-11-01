@@ -3,14 +3,13 @@
 /// Finds the smallest model that meets task requirements.
 /// Selects models based on measured task performance, not just parameter count.
 
-import 'package:flutter/foundation.dart';
-import 'model_types.dart';
-import 'model_catalog.dart';
-import 'compatibility_engine.dart';
+import 'model_types.dart' show RichModel, ModelVariant, QuantizationFormat, ModelArchitecture;
+import 'model_catalog.dart' show ModelCatalog;
+import '../core/types.dart' show DeviceInfo, HealthStatus, TaskType;
 
 /// Model candidate for a task
 class ModelCandidate {
-  final Model model;
+  final RichModel model;
   final QuantizationFormat quantizationFormat;
   final int downloadSize;
   final int memoryRequirement;
@@ -76,13 +75,13 @@ class EvaluatedCandidate extends ModelCandidate {
   final double measuredRecall;
   final double failureRate;
   final int initializationTimeMs;
-  final int memoryUsageMb;
-  final int peakMemoryUsageMb;
-  final int energyConsumptionMah;
+  final double memoryUsageMb;
+  final double peakMemoryUsageMb;
+  final double energyConsumptionMah;
   final String benchmarkSource;
 
   const EvaluatedCandidate({
-    required Model model,
+    required RichModel model,
     required QuantizationFormat quantizationFormat,
     required int downloadSize,
     required int memoryRequirement,
@@ -143,9 +142,6 @@ class ModelRecommendation {
     this.reasons = const [],
     this.tradeoffs = const [],
   });
-
-  @override
-  String toString() => 'ModelRecommendation(rank: $rank, ${candidate.model.id})';
 }
 
 /// Model selection pipeline result
@@ -235,7 +231,7 @@ class ModelOptimizer {
     required TaskType taskType,
     required TaskRequirements requirements,
     required DeviceInfo deviceInfo,
-    List<Model>? existingModels,
+    List<RichModel>? existingModels,
   }) {
     final candidates = <ModelCandidate>[];
 
@@ -247,19 +243,17 @@ class ModelOptimizer {
     // If existing models provided, prioritize those
     if (existingModels != null && existingModels.isNotEmpty) {
       final existingIds = existingModels.map((m) => m.id).toSet();
-
       for (final model in compatibleModels) {
         if (existingIds.contains(model.id)) {
-          // Use the installed variant
-          final variant = _getInstalledVariant(model);
+          final format = _getInstalledVariant(model);
           candidates.add(ModelCandidate(
             model: model,
-            quantizationFormat: variant.quantizationFormat,
-            downloadSize: variant.downloadSize,
-            memoryRequirement: variant.memoryRequirement,
+            quantizationFormat: format,
+            downloadSize: model.downloadSizes[format] ?? 0,
+            memoryRequirement: model.memoryRequirements[format] ?? 0,
             estimatedQuality: _estimateQuality(model, taskType),
-            estimatedLatencyMs: variant.estimatedLatencyMs,
-            estimatedThroughput: variant.estimatedThroughput,
+            estimatedLatencyMs: 50.0,
+            estimatedThroughput: 20.0,
             isInstalled: true,
             isCompatible: true,
           ));
@@ -270,88 +264,65 @@ class ModelOptimizer {
     // Add other compatible models
     for (final model in compatibleModels) {
       if (candidates.any((c) => c.model.id == model.id)) continue;
-
-      // Get the best variant for this device
-      final variant = _selectBestVariant(model, deviceInfo, requirements);
-      if (variant == null) continue;
-
+      final format = _selectBestVariant(model, deviceInfo, requirements);
+      if (format == null) continue;
       candidates.add(ModelCandidate(
         model: model,
-        quantizationFormat: variant.quantizationFormat,
-        downloadSize: variant.downloadSize,
-        memoryRequirement: variant.memoryRequirement,
+        quantizationFormat: format,
+        downloadSize: model.downloadSizes[format] ?? 0,
+        memoryRequirement: model.memoryRequirements[format] ?? 0,
         estimatedQuality: _estimateQuality(model, taskType),
-        estimatedLatencyMs: variant.estimatedLatencyMs,
-        estimatedThroughput: variant.estimatedThroughput,
+        estimatedLatencyMs: 50.0,
+        estimatedThroughput: 20.0,
         isInstalled: false,
         isCompatible: true,
       ));
     }
 
-    // Sort by download size (ascending) for consideration
     candidates.sort((a, b) => a.downloadSize.compareTo(b.downloadSize));
-
     return candidates;
   }
 
-  /// Select the best variant for a device
-  ModelVariant? _selectBestVariant(
-    Model model,
+  /// Select the best quantization format for a device
+  QuantizationFormat? _selectBestVariant(
+    RichModel model,
     DeviceInfo deviceInfo,
     TaskRequirements requirements,
   ) {
-    final variants = model.variants.where((v) {
-      // Check if download size fits available storage
-      if (v.downloadSize > deviceInfo.availableStorage) return false;
-
-      // Check quantization format support
-      if (!model.quantizationFormats.contains(v.quantizationFormat)) {
-        return false;
-      }
-
-      return true;
+    final formats = model.quantizationFormats.where((q) {
+      final size = model.downloadSizes[q] ?? 0;
+      return size <= deviceInfo.totalMemory;
     }).toList();
 
-    if (variants.isEmpty) return null;
+    if (formats.isEmpty) return null;
 
-    // If complexity is low, prefer smallest variant
     if (requirements.complexity == TaskComplexity.low) {
-      return variants.reduce((a, b) =>
-          a.downloadSize < b.downloadSize ? a : b);
+      return formats.reduce((a, b) =>
+          model.downloadSizes[a]! < model.downloadSizes[b]! ? a : b);
     }
 
-    // For higher complexity, prefer better quality (larger variant)
-    // but still try to minimize resources
-    return variants.reduce((a, b) {
-      // Compare quality-to-size ratio
-      final aRatio = a.estimatedThroughput / a.downloadSize;
-      final bRatio = b.estimatedThroughput / b.downloadSize;
-      return aRatio > bRatio ? a : b;
-    });
+    return formats.first;
   }
 
-  /// Get installed variant (for already installed models)
-  ModelVariant _getInstalledVariant(Model model) {
-    // In a real implementation, this would check what variant was installed
-    // For now, return the first/lightest variant
-    return model.variants
-        .reduce((a, b) => a.downloadSize < b.downloadSize ? a : b);
+  /// Get installed format (for already installed models)
+  QuantizationFormat _getInstalledVariant(RichModel model) {
+    return model.quantizationFormats.isNotEmpty
+        ? model.quantizationFormats.first
+        : throw Exception('No variants available');
   }
 
   /// Estimate quality of a model for a task
-  double _estimateQuality(Model model, TaskType taskType) {
-    // Check if we have benchmark data
+  double _estimateQuality(RichModel model, TaskType taskType) {
     final benchmark = catalog.getBenchmark(model.id);
     if (benchmark != null && benchmark.taskType == taskType) {
       return benchmark.accuracy;
     }
 
-    // Heuristic estimation based on model type
     switch (taskType) {
       case TaskType.classification:
       case TaskType.extraction:
         if (model.isEdgeModel && model.architecture == ModelArchitecture.specialized) {
-          return 0.85; // Specialized edge models are good at these tasks
+          return 0.85;
         }
         if (model.architecture == ModelArchitecture.transformer) {
           return model.smallestDownloadSize < 100 * 1024 * 1024 ? 0.75 : 0.90;
@@ -359,38 +330,18 @@ class ModelOptimizer {
         return 0.65;
 
       case TaskType.summarization:
+      case TaskType.generation:
+      case TaskType.completion:
         if (model.architecture == ModelArchitecture.transformer) {
           return model.smallestDownloadSize < 100 * 1024 * 1024 ? 0.65 : 0.85;
         }
-        return 0.40; // Statistical models not great at summarization
+        return 0.40;
 
-      case TaskType.generation:
-      case TaskType.complexReasoning:
-        if (model.architecture == ModelArchitecture.transformer) {
-          return model.smallestDownloadSize > 500 * 1024 * 1024 ? 0.85 : 0.60;
-        }
-        return 0.20; // Non-transformer models struggle here
+      case TaskType.embedding:
+        return 0.50;
 
-      case TaskType.planning:
-        if (model.architecture == ModelArchitecture.transformer) {
-          return model.smallestDownloadSize > 300 * 1024 * 1024 ? 0.75 : 0.55;
-        }
-        return 0.30;
-
-      case TaskType.statistics:
-      case TaskType.patternDetection:
-        if (model.architecture == ModelArchitecture.statistical ||
-            model.isEdgeModel) {
-          return 0.90; // Statistical models excel at this
-        }
-        return 0.60;
-
-      case TaskType.search:
-        return 0.70; // Most models can handle search tasks
-
-      case TaskType.processing:
-      default:
-        return 0.75;
+      case TaskType.unknown:
+        return 0.50;
     }
   }
 
@@ -404,7 +355,7 @@ class ModelOptimizer {
 
     for (final candidate in candidates) {
       // Check if we have cached evaluation
-      final cacheKey = '${candidate.model.id}_${candidate.quantizationFormat.name}_${taskRequirements.taskType?.name}';
+      final cacheKey = '${candidate.model.id}_${candidate.quantizationFormat.name}_${candidate.model.supportedTaskTypes.first.name}';
       if (_evaluationCache.containsKey(cacheKey)) {
         final cached = _evaluationCache[cacheKey]!.firstWhere(
           (c) => c.model.id == candidate.model.id,
@@ -446,25 +397,22 @@ class ModelOptimizer {
     // Adjust quality based on device compatibility
     double adjustedQuality = baseQuality;
     int memoryUsage = candidate.memoryRequirement;
-    int initializationTime = 100; // Default
+    double initializationTime = 100; // Default
     double latency = candidate.estimatedLatencyMs;
-    int energy = 50; // Default mAh
+    double energy = 50; // Default mAh
 
     // Fine-tune based on device characteristics
-    if (deviceInfo.deviceClass == DeviceClass.lowEnd) {
+    if (deviceInfo.totalMemory < 2 * 1024 * 1024 * 1024) {
       // Low-end devices may have slightly lower effective quality
       adjustedQuality *= 0.95;
-      memoryUsage = (memoryUsage * 1.1).toInt(); // Higher memory pressure
-      initializationTime = (initializationTime * 1.5).toInt();
-    } else if (deviceInfo.deviceClass == DeviceClass.highEnd) {
+      memoryUsage = (memoryUsage * 1.1).toInt();
+      initializationTime = (initializationTime * 1.5);
+    } else if (deviceInfo.totalMemory >= 4 * 1024 * 1024 * 1024) {
       // High-end devices can leverage hardware acceleration
-      if (deviceInfo.supportsNeuralEngine) {
+      if (deviceInfo.processorCount >= 6) {
         adjustedQuality *= 1.02;
         latency *= 0.8;
-        energy = (energy * 0.7).toInt();
-      }
-      if (deviceInfo.supportsGpu) {
-        latency *= 0.9;
+        energy = (energy * 0.7);
       }
     }
 
@@ -472,7 +420,7 @@ class ModelOptimizer {
     adjustedQuality = adjustedQuality.clamp(0.0, 1.0);
 
     // Calculate failure rate (inversely related to quality)
-    final failureRate = ((1.0 - adjustedQuality) * 100).toInt();
+    final failureRate = ((1.0 - adjustedQuality) * 100).toDouble();
 
     return EvaluatedCandidate(
       model: candidate.model,
@@ -489,10 +437,10 @@ class ModelOptimizer {
       measuredPrecision: adjustedQuality * 0.95,
       measuredRecall: adjustedQuality * 0.95,
       failureRate: failureRate,
-      initializationTimeMs: initializationTime,
-      memoryUsageMb: memoryUsage ~/ (1024 * 1024),
-      peakMemoryUsageMb: (memoryUsage * 1.2) ~/ (1024 * 1024),
-      energyConsumptionMah: energy,
+      initializationTimeMs: initializationTime.toInt(),
+      memoryUsageMb: (memoryUsage ~/ (1024 * 1024)).toDouble(),
+      peakMemoryUsageMb: (memoryUsage * 1.2 ~/ (1024 * 1024)).toDouble(),
+      energyConsumptionMah: energy.toDouble(),
       benchmarkSource: 'simulated',
     );
   }
@@ -576,7 +524,7 @@ class ModelOptimizer {
     final candidates = findCandidateModels(
       taskType: requirements.relevantTaskTypes.isNotEmpty
           ? requirements.relevantTaskTypes.first
-          : TaskType.processing,
+          : TaskType.completion,
       requirements: requirements,
       deviceInfo: deviceInfo,
     );
@@ -691,28 +639,14 @@ class ModelOptimizer {
 
   /// Simulated device info for when we can't get real device info
   Future<DeviceInfo> _getCurrentDeviceInfo() async {
-    // This would be provided by the compatibility engine
-    // For now, return a default
     return DeviceInfo(
+      deviceId: 'demo-device',
+      deviceModel: 'Demo Device',
+      osVersion: '13',
       totalMemory: 4 * 1024 * 1024 * 1024,
       availableMemory: 2 * 1024 * 1024 * 1024,
-      totalStorage: 64 * 1024 * 1024 * 1024,
-      availableStorage: 32 * 1024 * 1024 * 1024,
-      cpuCores: 6,
-      cpuFrequencyHz: 2400000000,
-      supportsGpu: true,
-      supportsNeuralEngine: false,
-      os: 'Android',
-      osVersion: '13',
-      deviceModel: 'Demo Device',
-      manufacturer: 'Demo',
-      screenWidth: 1080,
-      screenHeight: 2400,
-      isRooted: false,
-      batteryLevel: 0.8,
-      isCharging: false,
-      networkType: NetworkType.wifi,
-      powerSaveMode: false,
+      processorCount: 6,
+      platform: 'android',
     );
   }
 }

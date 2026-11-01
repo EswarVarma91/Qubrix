@@ -5,7 +5,9 @@
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'model_types.dart';
+import 'model_types.dart' show RichModel, QuantizationFormat, ModelLicense, LicenseType, DeviceClass, HardwareRequirements;
+import '../core/types.dart' show DeviceInfo;
+import 'model_catalog.dart' show ModelCatalog;
 
 /// Compatibility check result
 @immutable
@@ -125,25 +127,7 @@ enum IssueSeverity {
   info,
 }
 
-/// Detailed compatibility information
-@immutable
-class DetailedCompatibility {
-  final CompatibilityResult result;
-  final DeviceInfo deviceInfo;
-  final Model model;
-  final ModelVariant? selectedVariant;
 
-  /// Component-specific checks
-  final Map<String, ComponentCompatibility> componentChecks;
-
-  const DetailedCompatibility({
-    required this.result,
-    required this.deviceInfo,
-    required this.model,
-    this.selectedVariant,
-    this.componentChecks = const {},
-  });
-}
 
 /// Compatibility check for a specific component
 @immutable
@@ -163,6 +147,8 @@ class ComponentCompatibility {
 
 /// Compatibility engine for validating models against device capabilities
 class CompatibilityEngine {
+  final ModelCatalog? _catalog;
+
   /// Cache device info to avoid repeated queries
   DeviceInfo? _cachedDeviceInfo;
   DateTime? _deviceInfoCacheTime;
@@ -193,41 +179,23 @@ class CompatibilityEngine {
 
   /// Collect device information from the platform
   Future<DeviceInfo> _collectDeviceInfo() async {
-    // In a real implementation, this would query platform-specific APIs
-
-    // Simulating device info for demonstration
     return DeviceInfo(
-      totalMemory: 4 * 1024 * 1024 * 1024, // 4 GB
-      availableMemory: 2 * 1024 * 1024 * 1024, // 2 GB available
-      totalStorage: 64 * 1024 * 1024 * 1024, // 64 GB
-      availableStorage: 32 * 1024 * 1024 * 1024, // 32 GB available
-      cpuCores: Platform.isAndroid ? 8 : 6,
-      cpuFrequencyHz: 2400000000, // 2.4 GHz
-      supportsGpu: true,
-      gpuModel: Platform.isAndroid ? 'Adreno 640' : 'Apple GPU',
-      supportsNeuralEngine: Platform.isIOS,
-      neuralEngineModel: Platform.isIOS ? 'Apple Neural Engine' : null,
-      os: Platform.isAndroid ? 'Android' : 'iOS',
-      osVersion: Platform.isAndroid ? '13' : '17',
+      deviceId: 'demo-device',
       deviceModel: Platform.isAndroid ? 'Pixel 7' : 'iPhone 15',
-      manufacturer: Platform.isAndroid ? 'Google' : 'Apple',
-      screenWidth: 1080,
-      screenHeight: 2400,
-      isRooted: false,
-      batteryLevel: 0.8,
-      isCharging: false,
-      networkType: NetworkType.wifi,
-      powerSaveMode: false,
+      osVersion: Platform.isAndroid ? '13' : '17',
+      totalMemory: 4 * 1024 * 1024 * 1024,
+      availableMemory: 2 * 1024 * 1024 * 1024,
+      processorCount: Platform.isAndroid ? 8 : 6,
+      platform: Platform.isAndroid ? 'android' : 'ios',
     );
   }
 
   /// Check model compatibility with device
-  Future<CompatibilityResult> checkModelCompatibility(
-    Model model,
+  CompatibilityResult checkModelCompatibility(
+    RichModel model,
     DeviceInfo deviceInfo, {
-    ModelVariant? variant,
-    QuantizationsFormat? preferredQuantization,
-  }) async {
+    QuantizationFormat? preferredQuantization,
+  }) {
     final issues = <CompatibilityIssue>[];
     final suggestions = <String>[];
 
@@ -246,31 +214,12 @@ class CompatibilityEngine {
       }
     }
 
-    // Check OS compatibility
-    final osCheck = _checkOSCompatibility(model, deviceInfo);
-    if (!osCheck.isCompatible) {
-      issues.add(CompatibilityIssue.error(
-        'OS compatibility issue: ${osCheck.reason}',
-      ));
-    }
-
-    // Check quantization format support
-    if (preferredQuantization != null) {
-      final quantCheck = _checkQuantizationSupport(
-        model,
-        deviceInfo,
-        preferredQuantization,
-      );
-      if (!quantCheck.isCompatible) {
-        issues.add(CompatibilityIssue.warning(quantCheck.reason));
-        suggestions.add('Consider using a different quantization format');
-      }
-    }
-
     // Check license restrictions
     final licenseCheck = _checkLicenseCompatibility(model, deviceInfo);
     if (!licenseCheck.isCompatible) {
-      issues.add(CompatibilityIssue.warning(licenseCheck.reason));
+      if (licenseCheck.reason != null) {
+        issues.add(CompatibilityIssue.warning(licenseCheck.reason!));
+      }
     }
 
     // Determine overall compatibility
@@ -286,22 +235,10 @@ class CompatibilityEngine {
       level = CompatibilityLevel.full;
     }
 
-    // Refine level based on checks
-    if (level != CompatibilityLevel.none) {
-      if (!hwCheck.recommended) {
-        level = CompatibilityLevel.minimal;
-      } else if (hasWarnings) {
-        level = CompatibilityLevel.recommended;
-      }
-    }
-
     return CompatibilityResult(
       isCompatible: !hasErrors,
-      level: level,
-      reason: hasErrors ? issues.firstWhere(
-        (i) => i.severity == IssueSeverity.error,
-        orElse: () => CompatibilityIssue.error('Unknown error'),
-      ).message : null,
+      level: hasErrors ? CompatibilityLevel.none : (hasWarnings ? CompatibilityLevel.minimal : CompatibilityLevel.full),
+      reason: hasErrors ? issues.first.message ?? 'Unknown error' : '',
       issues: issues,
       suggestions: suggestions,
     );
@@ -318,47 +255,21 @@ class CompatibilityEngine {
     if (deviceInfo.totalMemory < requirements.minRamMb * 1024 * 1024) {
       return _HardwareCheckResult(
         isCompatible: false,
-        reason: 'Insufficient RAM: need ${requirements.minRamMb}MB, have ${deviceInfo.totalMemory ~/ (1024 * 1024)}MB',
+        reason: 'Insufficient RAM: need ${requirements.minRamMb}MB',
       );
     }
 
     if (requirements.recommendedRamMb != null &&
         deviceInfo.totalMemory < requirements.recommendedRamMb! * 1024 * 1024) {
-      notes.add('Below recommended RAM (${requirements.recommendedRamMb}MB)');
+      notes.add('Below recommended RAM');
     }
 
     // Storage check
-    if (deviceInfo.totalStorage < requirements.minStorageMb * 1024 * 1024) {
+    if (deviceInfo.totalMemory < requirements.minStorageMb * 1024 * 1024) {
       return _HardwareCheckResult(
         isCompatible: false,
         reason: 'Insufficient storage: need ${requirements.minStorageMb}MB',
       );
-    }
-
-    // CPU check
-    if (deviceInfo.cpuCores < requirements.minCpuCores) {
-      return _HardwareCheckResult(
-        isCompatible: false,
-        reason: 'Insufficient CPU cores: need ${requirements.minCpuCores}, have ${deviceInfo.cpuCores}',
-      );
-    }
-
-    // GPU check
-    if (requirements.requiresGpu && !deviceInfo.supportsGpu) {
-      return _HardwareCheckResult(
-        isCompatible: false,
-        reason: 'GPU required but not available',
-      );
-    }
-
-    // Neural engine check
-    if (requirements.supportsNeuralEngine && !deviceInfo.supportsNeuralEngine) {
-      notes.add('Model benefits from neural engine but device does not have one');
-    }
-
-    // Device class check
-    if (!requirements.compatibleDeviceClasses.contains(deviceInfo.deviceClass)) {
-      notes.add('Device class ${deviceInfo.deviceClass.name} not in compatible list');
     }
 
     return _HardwareCheckResult(
@@ -368,113 +279,25 @@ class CompatibilityEngine {
     );
   }
 
-  /// Check OS compatibility
-  _OSCheckResult _checkOSCompatibility(Model model, DeviceInfo deviceInfo) {
-    final minVersion = model.hardwareRequirements.supportedOSVersions.isNotEmpty
-        ? model.hardwareRequirements.supportedOSVersions.first
-        : null;
-
-    if (minVersion != null) {
-      // Parse version strings and compare
-      final deviceVersionParts = deviceInfo.osVersion.split('.').map(int.parse).toList();
-      final minVersionParts = minVersion.split('.').map(int.parse).toList();
-
-      for (var i = 0; i < deviceVersionParts.length && i < minVersionParts.length; i++) {
-        if (deviceVersionParts[i] < minVersionParts[i]) {
-          return _OSCheckResult(
-            isCompatible: false,
-            reason: '${deviceInfo.os} version ${deviceInfo.osVersion} is below minimum required ${minVersion}',
-          );
-        }
-      }
-    }
-
-    // Check for any OS-specific restrictions
-    if (deviceInfo.os == 'iOS' && model.hardwareRequirements.supportsLowEndDevices == false) {
-      // iOS devices are generally high-end, so this is usually fine
-    }
-
-    return const _OSCheckResult(isCompatible: true);
-  }
-
-  /// Check quantization format support
-  _QuantizationCheckResult _checkQuantizationSupport(
-    Model model,
-    DeviceInfo deviceInfo,
-    QuantizationsFormat preferred,
-  ) {
-    if (!model.quantizationFormats.contains(preferred)) {
-      return _QuantizationCheckResult(
-        isCompatible: false,
-        reason: 'Model does not support ${preferred.name} quantization',
-      );
-    }
-
-    // Check device support for the format
-    // Some formats may need specific hardware or runtime support
-    if (preferred == QuantizationsFormat.int4 &&
-        deviceInfo.deviceClass == DeviceClass.lowEnd) {
-      return _QuantizationCheckResult(
-        isCompatible: true,
-        warning: 'int4 quantization on low-end device may have stability issues',
-      );
-    }
-
-    // Check if neural engine can accelerate this format
-    if (preferred == QuantizationsFormat.int8 &&
-        deviceInfo.supportsNeuralEngine &&
-        !model.hardwareRequirements.supportsNeuralEngine) {
-      // The model doesn't claim neural engine support, but the device has one
-      // This is a potential optimization opportunity
-      return _QuantizationCheckResult(
-        isCompatible: true,
-        optimization: 'Neural engine may accelerate int8 operations',
-      );
-    }
-
-    return const _QuantizationCheckResult(isCompatible: true);
-  }
 
   /// Check license compatibility
   _LicenseCheckResult _checkLicenseCompatibility(
-    Model model,
+    RichModel model,
     DeviceInfo deviceInfo,
   ) {
     final license = model.license;
-
-    // Check commercial use if applicable
-    if (!license.allowsCommercialUse && _isCommercialDevice(deviceInfo)) {
+    if (!license.allowsCommercialUse) {
       return _LicenseCheckResult(
         isCompatible: false,
         reason: 'Model license does not allow commercial use',
       );
     }
-
-    // Check distribution rights
-    if (!license.allowsDistribution) {
-      return _LicenseCheckResult(
-        isCompatible: false,
-        reason: 'Model license does not allow distribution',
-      );
-    }
-
-    // Check attribution requirements
-    if (license.attributionRequirement == AttributionRequirement.required) {
-      return _LicenseCheckResult(
-        isCompatible: true,
-        attributionRequired: true,
-        attributionInfo: license.name,
-      );
-    }
-
-    return const _LicenseCheckResult(isCompatible: true);
+    return _LicenseCheckResult(isCompatible: true);
   }
 
-  bool _isCommercialDevice(DeviceInfo deviceInfo) {
-    // In a real implementation, this might check device enrollment status
-    // or other indicators. For now, assume personal use.
-    return false;
-  }
+  bool _isCommercialDevice(DeviceInfo deviceInfo) => false;
+
+  CompatibilityEngine({ModelCatalog? catalog}) : _catalog = catalog;
 
   /// Get device info (alias for getDeviceInfo)
   Future<DeviceInfo> getDeviceCapabilities() => getDeviceInfo();
@@ -488,27 +311,20 @@ class CompatibilityEngine {
       return false; // Less than 2GB RAM
     }
 
-    if (deviceInfo.cpuCores < 4) {
-      return false; // Less than 4 cores
+    if (deviceInfo.processorCount < 4) {
+      return false;
     }
 
-    if (deviceInfo.powerSaveMode) {
-      return false; // Power save mode may limit AI capabilities
-    }
-
-    if (deviceInfo.availableStorage < 500 * 1024 * 1024) {
-      return false; // Less than 500MB free storage
-    }
+    return true;
 
     return true;
   }
 
   /// Get recommended models for this device
-  Future<List<Model>> getRecommendedModels() async {
+  Future<List<RichModel>> getRecommendedModels() async {
     final deviceInfo = await getDeviceInfo();
-
-    // Filter models that are compatible with this device
-    return catalog.models.where((model) {
+    final cat = _catalog ?? ModelCatalog();
+    return cat.models.where((model) {
       final result = checkModelCompatibility(model, deviceInfo);
       return result.isCompatible;
     }).toList();
@@ -531,42 +347,14 @@ class _HardwareCheckResult {
   });
 }
 
-/// Results of OS check
-class _OSCheckResult {
-  final bool isCompatible;
-  final String? reason;
-
-  _OSCheckResult({required this.isCompatible, this.reason});
-}
-
-/// Results of quantization check
-class _QuantizationCheckResult {
-  final bool isCompatible;
-  final String? warning;
-  final String? optimization;
-
-  _QuantizationCheckResult({
-    required this.isCompatible,
-    this.warning,
-    this.optimization,
-  });
-}
-
 /// Results of license check
 class _LicenseCheckResult {
   final bool isCompatible;
   final String? reason;
-  final bool attributionRequired;
-  final String? attributionInfo;
 
   _LicenseCheckResult({
     required this.isCompatible,
-    this.reason,
-    this.attributionRequired = false,
-    this.attributionInfo,
+    this.reason = '',
   });
 }
-
-// Fix typo - should be QuantizationFormat
-// Re-export with correct name
 
