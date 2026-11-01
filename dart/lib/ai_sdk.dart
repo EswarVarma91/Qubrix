@@ -20,6 +20,8 @@ export 'src/model/compatibility_engine.dart';
 export 'src/model/model_catalog.dart';
 export 'src/model/model_optimizer.dart';
 
+export 'src/model/model_manager.dart' show ModelProgress, ModelOperationType;
+
 // Personalization
 export 'src/personalization/activity_event.dart';
 export 'src/personalization/profile_manager.dart';

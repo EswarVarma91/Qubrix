@@ -257,6 +257,91 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  bool _isDownloading = false;
+
+  Future<void> _downloadModel() async {
+    if (!_isInitialized || _isDownloading) return;
+
+    setState(() {
+      _isDownloading = true;
+      _status = 'Downloading and loading model...';
+    });
+
+    try {
+      // Get the smallest suitable model
+      final deviceInfo = await _engine.compatibilityEngine.getDeviceInfo();
+      final model = await _engine.getSmallestSuitableModel(
+        TaskType.classification,
+        deviceInfo: deviceInfo,
+        minQuality: 0.8,
+      );
+
+      if (model == null) {
+        setState(() {
+          _status = 'No suitable model found';
+          _isDownloading = false;
+        });
+        return;
+      }
+
+      // Download with progress tracking
+      final result = await _engine.downloadModel(
+        model.model.id,
+        onProgress: (progress) {
+          setState(() {
+            _status = '${progress.operation.name.toUpperCase()}: '
+                '${progress.percent.toStringAsFixed(1)}% '
+                '(${(progress.progress ~/ 1024 / 1024)}MB / ${(progress.total ~/ 1024 / 1024)}MB)'
+                '${progress.status != null ? " - ${progress.status}" : ""}';
+          });
+        },
+        onLoadProgress: (progress) {
+          setState(() {
+            _status = 'LOADING: ${progress.percent.toStringAsFixed(1)}% '
+                '- ${progress.detail ?? ""}';
+          });
+        },
+      );
+
+      if (result.success) {
+        setState(() {
+          _status = 'Model ready! '
+              '(${result.bytesDownloaded ?? 0} bytes downloaded in '
+              '${result.duration?.inSeconds ?? 0}s)';
+          _isDownloading = false;
+        });
+      } else {
+        setState(() {
+          _status = 'Download failed: ${result.errorMessage}';
+          _isDownloading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _status = 'Error: $e';
+        _isDownloading = false;
+      });
+    }
+  }
+
+  Future<void> _checkModelStatus() async {
+    if (!_isInitialized) return;
+
+    try {
+      final installed = _engine.getInstalledModels();
+      final loaded = _engine.isModelLoaded('any_model');
+      
+      setState(() {
+        _status = 'Installed: ${installed.length} models, '
+            'Loaded: ${loaded ? "yes" : "no"}';
+      });
+    } catch (e) {
+      setState(() {
+        _status = 'Error: $e';
+      });
+    }
+  }
+
   Future<void> _checkHealth() async {
     if (!_isInitialized) return;
 
@@ -294,6 +379,11 @@ class _HomePageState extends State<HomePage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
+                  onPressed: _isInitialized && !_isDownloading ? _downloadModel : null,
+                  child: const Text('Download Model'),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
                   onPressed: _isInitialized ? _runTask : null,
                   child: const Text('Run Task'),
                 ),
@@ -310,9 +400,19 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _isInitialized ? _checkHealth : null,
-              child: const Text('Check Health'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton(
+                  onPressed: _isInitialized ? _checkModelStatus : null,
+                  child: const Text('Check Model Status'),
+                ),
+                const SizedBox(width: 16),
+                OutlinedButton(
+                  onPressed: _isInitialized ? _checkHealth : null,
+                  child: const Text('Check Health'),
+                ),
+              ],
             ),
           ],
         ),

@@ -512,10 +512,16 @@ class AdaptiveAgentEngine {
   }
 
   /// Download a model for a specific task
+  /// 
+  /// This downloads the model and loads it into memory.
+  /// Use onProgress to track download/verification/initialization progress.
+  /// Use onLoadProgress to track model loading into memory.
   Future<ModelDownloadResult> downloadModel(
     String modelId, {
     String? taskType,
     ModelVariant? preferredVariant,
+    void Function(ModelProgress)? onProgress,
+    void Function(ModelProgress)? onLoadProgress,
   }) async {
     if (!_initialized) {
       throw StateError('Engine not initialized');
@@ -527,7 +533,38 @@ class AdaptiveAgentEngine {
       modelId,
       deviceInfo,
       preferredVariant: preferredVariant,
+      onProgress: onProgress,
+      onLoadProgress: onLoadProgress,
     );
+  }
+
+  /// Check if a model is currently being downloaded or loaded
+  bool isModelOperationInProgress(String modelId) {
+    return _modelManager.isDownloading(modelId);
+  }
+
+  /// Get current progress for a model operation
+  ModelProgress? getModelProgress(String modelId) {
+    final downloadProgress = _modelManager.getDownloadProgress(modelId);
+    if (downloadProgress != null) {
+      return downloadProgress.toModelProgress();
+    }
+    return null;
+  }
+
+  /// Check if a model is loaded in memory and ready for inference
+  bool isModelLoaded(String modelId) {
+    return _modelManager.isModelLoaded(modelId);
+  }
+
+  /// Unload a model from memory to free resources
+  void unloadModel(String modelId) {
+    _modelManager.unloadModel(modelId);
+  }
+
+  /// Unload all models from memory
+  void unloadAllModels() {
+    _modelManager.unloadAllModels();
   }
 
   /// Check if a model is installed
