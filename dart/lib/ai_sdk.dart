@@ -96,46 +96,50 @@ export 'package:flutter/foundation.dart' show kIsWeb;
 export 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 
 // Core engines
+// Main public API
 export 'src/agent/agent_engine.dart';
-export 'src/model/model_manager.dart';
-export 'src/model/model_downloader.dart';
-export 'src/model/model_analyzer.dart';
-export 'src/model/model_compatibility.dart';
-export 'src/model/model_integrity_checker.dart';
-export 'src/engine/compatibility_engine.dart';
-export 'src/engine/model_optimizer.dart';
-export 'src/engine/personalization_engine.dart';
-export 'src/engine/recommendation_engine.dart';
-export 'src/engine/automation_engine.dart';
-export 'src/engine/database_engine.dart';
-export 'src/engine/remote_model_source.dart';
 
-// Privacy and permissions
-export 'src/privacy/privacy_manager.dart';
+// Task orchestration
+export 'src/task_orchestrator.dart';
 
-// Common types
-export 'src/common/types.dart';
-export 'src/common/constants.dart';
-export 'src/common/functional_contract.dart';
+// Model management
+export 'src/model/model_manager.dart' hide ModelProgress, ModelOperationType, DownloadProgress;
+export 'src/model/model_catalog.dart';
+export 'src/model/model_types.dart' show HuggingFaceModel, ModelVariant, ModelDownloadResult, LoadedModel, ModelCompatibilityResult, Model;
+
+// Compatibility
+nexport 'src/model/compatibility_engine.dart';
+export 'src/model/model_optimizer.dart';
+
+// Personalization
+export 'src/personalization/personalization_engine.dart';
+export 'src/personalization/recommendation_engine.dart';
+export 'src/personalization/profile_manager.dart';
+
+// Automation
+export 'src/automation/automation_engine.dart';
+export 'src/automation/permission_manager.dart';
+
+// Core types
+export 'src/core/types.dart' hide ModelOperationType, ModelProgress, DownloadProgress;
 
 // Security
-export 'src/security/security_config.dart';
-export 'src/security/ai_security_manager.dart';
-export 'src/security/permission_guard.dart';
-export 'src/security/tamper_detection.dart';
-export 'src/security/integrity_verifier.dart';
-export 'src/security/data_protection.dart';
-export 'src/security/customer_data_protection.dart';
-export 'src/security/data_isolation.dart';
-export 'src/security/emergency_breach_response.dart';
-export 'src/security/secure_storage_manager.dart';
-export 'src/security/audit_logger.dart';
-export 'src/security/model_tamper_protection.dart';
-export 'src/security/model_integrity_checker.dart';
+export 'src/core/security/security_config.dart';
+export 'src/core/security/permission_guard.dart';
+export 'src/core/security/tamper_detector.dart';
+export 'src/core/security/integrity_verifier.dart';
+export 'src/core/security/data_protector.dart';
+export 'src/core/security/customer_data_protector.dart';
+export 'src/core/security/data_isolation.dart';
+export 'src/core/security/emergency_breach_response.dart';
+export 'src/core/security/secure_storage_manager.dart';
+export 'src/core/security/audit_logger.dart';
+export 'src/core/security/model_tamper_protection.dart';
+export 'src/core/security/secure_delete_manager.dart';
 
 // Firebase (SDK's own Firebase for Remote Config)
 export 'src/firebase/sdk_firebase_initializer.dart';
 export 'src/firebase/sdk_firebase_config.dart';
 export 'src/firebase/sdk_firebase_options.dart' show SdkFirebaseOptions;
 
-export 'src/api.dart';
+export 'src/version.dart';

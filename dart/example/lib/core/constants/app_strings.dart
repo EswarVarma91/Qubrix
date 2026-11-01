@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// App-wide string constants
 class AppStrings {
   AppStrings._();
@@ -5,7 +7,7 @@ class AppStrings {
   // App
   static const String appName = 'AI SDK Demo';
   static const String appVersion = '1.0.0';
-  static const String loading = 'Loading...';
+  static const String loadingText = 'Loading...';
   static const String retry = 'Retry';
   static const String cancel = 'Cancel';
   static const String confirm = 'Confirm';
@@ -38,7 +40,7 @@ class AppStrings {
   // Model operations
   static const String downloading = 'Downloading';
   static const String verifying = 'Verifying';
-  static const String loading = 'Loading';
+  static const String loadingText2 = 'Loading';
   static const String initializing = 'Initializing';
   static const String modelInstalled = 'Model installed';
   static const String modelLoaded = 'Model loaded in memory';
@@ -100,4 +102,4 @@ class AppColors {
   static const Color errorColor = Color(0xFFF44336);
 }
 
-import 'package:flutter/material.dart';
+

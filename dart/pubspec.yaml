@@ -10,20 +10,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: ^2.24.2
-  firebase_remote_config: ^4.3.4
-  firebase_analytics: ^9.4.3
+  firebase_core: ^2.27.0
+  firebase_remote_config: ^4.4.7
+  firebase_analytics: ^10.9.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
 
-flutter:
-  plugin:
-    platforms:
-      android:
-        package: com.example.ai_sdk
-        pluginClass: AiSdkPlugin
-      ios:
-        pluginClass: AiSdkPlugin
+# AI SDK is a Dart/Flutter package (not a Flutter plugin)
+# No native platform code required - works as a regular Dart package

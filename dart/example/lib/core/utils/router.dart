@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import '../screens/home_screen.dart';
-import '../screens/settings_screen.dart';
+import '../../ui/screens/home_screen.dart';
+import '../../ui/screens/settings_screen.dart';
 
 /// GetX route definitions
 class AppRoutes {

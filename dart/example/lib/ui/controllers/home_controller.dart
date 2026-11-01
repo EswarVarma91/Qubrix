@@ -2,20 +2,17 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 import '../../core/constants/app_strings.dart';
-import '../../core/model_catalog.dart';
 import '../../core/firebase_remote_config.dart';
 import '../../core/utils/router.dart';
 import '../../data/repositories/ai_repository.dart';
 import '../../core/bindings/app_bindings.dart';
 
-/// Home controller - HuggingFace URL comes from Firebase Remote Config
+/// Home controller - HuggingFace URL from SDK's Firebase Remote Config
 /// Background task - user just taps download, no model selection UI
 class HomeController extends GetxController {
-  final AdaptiveAgentEngine _engine;
-  final AiRepository _repository;
-  final ModelConfigService _modelConfig;
-
-  HomeController(this._engine, this._repository, this._modelConfig);
+  final AdaptiveAgentEngine _engine = Get.find<AdaptiveAgentEngine>();
+  final AiRepository _repository = Get.find<AiRepository>();
+  final FirebaseRemoteConfigService _modelConfig = Get.find<FirebaseRemoteConfigService>();
 
   // Observable state
   final _status = ''.obs;
@@ -52,79 +49,49 @@ class HomeController extends GetxController {
     super.onInit();
     _checkSecurityStatus();
     _updateModelStatus();
-    // Don't fetch Firebase on init - only when needed
-    // Firebase is only checked when there's no model downloaded
   }
 
   void _checkSecurityStatus() {
-    final tamperDetector = getIt<TamperDetector>();
-    
+    final tamperDetector = TamperDetector();
     _securityStatus.value = tamperDetector.isSdkIntegrityVerified
         ? 'Security: Protected'
         : 'Security: Compromised!';
-    
     _tamperWarning.value = !tamperDetector.isSdkIntegrityVerified;
     _integrityStatus.value = tamperDetector.getIntegrityReport();
   }
 
   Future<void> refreshSecurityStatus() async {
-    final tamperDetector = getIt<TamperDetector>();
+    final tamperDetector = TamperDetector();
     final status = await tamperDetector.verifySdkIntegrity();
-    
-    _securityStatus.value = status.ok
-        ? 'Security: Protected'
-        : 'Security: Compromised!';
+    _securityStatus.value = status.ok ? 'Security: Protected' : 'Security: Compromised!';
     _tamperWarning.value = !status.ok;
     _integrityStatus.value = tamperDetector.getIntegrityReport();
-    
     if (!status.ok) {
       showSnackbar('Security warning: ${status.message}', isSuccessful: false);
     }
   }
 
-  // Initialize engine
-  Future<void> initializeEngine() async {
-    if (_isInitialized.value) return;
-
-    _setStatus(AppStrings.loading);
-    _isLoading.value = true;
-
-    try {
-      _isInitialized.value = true;
-      _setStatus(AppStrings.engineInitialized);
-      _updateModelStatus();
-    } catch (e) {
-      _setStatus('Error: $e');
-    } finally {
-      _isLoading.value = false;
-    }
-  }
-
-  // Download model from HuggingFace
-  // Only fetches from Firebase when no model is installed
-  // Otherwise uses cached URL
+  /// Download model from HuggingFace
+  /// Only fetches from SDK Firebase when no model is installed
   Future<void> downloadModel() async {
     if (_isDownloading.value) return;
 
     // Check if any model is already installed
     final installedModels = _repository.getInstalledModels();
     if (installedModels.isNotEmpty) {
-      // Model already downloaded - no need to check Firebase
       _isDownloading.value = true;
       _setStatus('Model already installed: ${installedModels.first.displayName}');
       _updateModelStatus();
       return;
     }
 
-    // No model installed - fetch HuggingFace URL from Firebase
-    // This is the only time we check Firebase
-    final huggingFaceUrl = _modelConfig.getHuggingFaceUrl();
+    // No model installed - fetch HuggingFace URL from SDK's Firebase
+    final huggingFaceUrl = await _modelConfig.getHuggingFaceUrl();
+    final repoId = _modelConfig.getRepoIdFromUrl(huggingFaceUrl);
 
-    // Extract repo ID from HuggingFace URL
-    // URL format: https://huggingface.co/<owner>/<repo>
-    final repoId = _extractRepoIdFromUrl(huggingFaceUrl);
-    if (repoId.isEmpty) {
+    if (repoId == null || repoId.isEmpty) {
       _setStatus('Invalid HuggingFace URL from Firebase: $huggingFaceUrl');
+      _isDownloading.value = false;
       return;
     }
 
@@ -165,7 +132,7 @@ class HomeController extends GetxController {
     }
   }
 
-  // Run a task
+  /// Run a task
   Future<void> runTask() async {
     _isLoading.value = true;
     _setStatus(AppStrings.pleaseWait);
@@ -175,19 +142,14 @@ class HomeController extends GetxController {
         TaskRequest(
           taskId: 'task_${DateTime.now().millisecondsSinceEpoch}',
           description: 'Classify this notification',
-          input: {
-            'text': 'Your order #12345 has been shipped!',
-          },
+          input: {'text': 'Your order #12345 has been shipped!'},
           taskType: TaskType.classification,
-          context: {
-            'screen': 'notifications',
-            'timeOfDay': 'morning',
-          },
+          context: {'screen': 'notifications', 'timeOfDay': 'morning'},
         ),
       );
 
       if (result.success) {
-        _setStatus('${AppStrings.taskCompleted}: ${result.output?.text ?? "Success"}');
+        _setStatus('${AppStrings.taskCompleted}: ${result.errorMessage ?? "Success"}');
       } else {
         _setStatus('${AppStrings.taskFailed}: ${result.errorMessage}');
       }
@@ -198,7 +160,7 @@ class HomeController extends GetxController {
     }
   }
 
-  // Get recommendation
+  /// Get recommendation
   Future<void> getRecommendation() async {
     _isLoading.value = true;
     _setStatus(AppStrings.pleaseWait);
@@ -206,9 +168,7 @@ class HomeController extends GetxController {
     try {
       final recommendation = await _repository.getRecommendation(
         contextType: 'time_of_day',
-        contextData: {
-          'hour': DateTime.now().hour,
-        },
+        contextData: {'hour': DateTime.now().hour},
       );
 
       if (recommendation != null) {
@@ -223,27 +183,25 @@ class HomeController extends GetxController {
     }
   }
 
-  // Check model status
+  /// Check model status
   void checkModelStatus() {
     _updateModelStatus();
     final installed = _repository.getInstalledModels();
     if (installed.isEmpty) {
       _setStatus(AppStrings.noModelsInstalled);
     } else {
-      _setStatus('Installed: ${installed.length} models, '
-          'Loaded: ${_isModelLoaded.value ? 'yes' : 'no'}');
+      _setStatus('Installed: ${installed.length} models');
     }
   }
 
-  // Check health
+  /// Check health
   Future<void> checkHealth() async {
     _isLoading.value = true;
-
     try {
       final health = await _repository.checkHealth();
       _healthStatus.value = health.isHealthy
-          ? 'Health: OK (${health.installedModels} models installed)'
-          : 'Health: ${health.components.values.join(", ")}';
+          ? 'Health: OK (${health.installedModels} models)'
+          : 'Health: ${health.message}';
       _setStatus(_healthStatus.value);
     } catch (e) {
       _setStatus('Error: $e');
@@ -252,7 +210,7 @@ class HomeController extends GetxController {
     }
   }
 
-  // Unload model
+  /// Unload model
   void unloadModel() {
     _repository.unloadAllModels();
     _isModelLoaded.value = false;
@@ -260,41 +218,24 @@ class HomeController extends GetxController {
     _updateModelStatus();
   }
 
-  // Clear personalization data
+  /// Clear personalization data
   Future<void> clearPersonalizationData() async {
     await _repository.clearPersonalizationData();
     _setStatus('Personalization data cleared');
   }
 
   // Navigation methods (GetX)
-  void navigateToSettings() {
-    Get.toNamed(AppRoutes.settings);
-  }
-
-  void navigateBack() {
-    Get.back();
-  }
-
-  void navigateToHome() {
-    Get.offAllNamed(AppRoutes.home);
-  }
-
-  void navigateToSecurity() {
-    showSnackbar('Security details: ${_integrityStatus.value}', isSuccessful: !_tamperWarning.value);
-  }
-
-  void navigateToModels() {
-    showSnackbar('${installedModelsCount} models installed', isSuccessful: true);
-  }
-
-  void showAbout() {
-    showSnackbar('AI SDK Demo v${AppStrings.appVersion}', isSuccessful: true);
-  }
+  void navigateToSettings() => Get.toNamed(AppRoutes.settings);
+  void navigateBack() => Get.back();
+  void navigateToHome() => Get.offAllNamed(AppRoutes.home);
+  void navigateToSecurity() => showSnackbar('Security: ${_integrityStatus.value}', isSuccessful: !_tamperWarning.value);
+  void navigateToModels() => showSnackbar('${installedModelsCount} models installed', isSuccessful: true);
+  void showAbout() => showSnackbar('AI SDK Demo v${AppStrings.appVersion}', isSuccessful: true);
 
   void clearModelCache() async {
     _isLoading.value = true;
     try {
-      await _repository.clearModelCache();
+      await _repository.clearPersonalizationData();
       _updateModelStatus();
       showSnackbar('Model cache cleared', isSuccessful: true);
     } catch (e) {
@@ -304,9 +245,7 @@ class HomeController extends GetxController {
     }
   }
 
-  void showStorageInfo() {
-    showSnackbar('Storage info: models=${installedModelsCount}', isSuccessful: true);
-  }
+  void showStorageInfo() => showSnackbar('Storage info: models=${installedModelsCount}', isSuccessful: true);
 
   void showSnackbar(String message, {bool isSuccessful = true}) {
     Get.snackbar(
@@ -314,17 +253,15 @@ class HomeController extends GetxController {
       message,
       snackPosition: SnackPosition.BOTTOM,
       duration: const Duration(seconds: 3),
-      backgroundColor: isSuccessful ? AppColors.success : AppColors.error,
-      colorText: AppColors.onError,
+      backgroundColor: isSuccessful ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+      colorText: Colors.white,
       margin: const EdgeInsets.all(16),
       borderRadius: 8,
       isDismissible: true,
     );
   }
 
-  void _setStatus(String message) {
-    _status.value = message;
-  }
+  void _setStatus(String message) => _status.value = message;
 
   void _updateModelStatus() {
     _installedModelsCount.value = _repository.getInstalledModels().length;
@@ -334,21 +271,7 @@ class HomeController extends GetxController {
   }
 
   /// Extract HuggingFace repo ID from URL
-  /// URL format: https://huggingface.co/<owner>/<repo>
-  String _extractRepoIdFromUrl(String url) {
-    try {
-      final uri = Uri.parse(url);
-      // Get the last two path segments: owner/repo
-      final pathSegments = uri.pathSegments;
-      if (pathSegments.length >= 2) {
-        final repoId = '${pathSegments[pathSegments.length - 2]}/${pathSegments[pathSegments.length - 1]}';
-        return repoId.contains('@') ? repoId.split('@').first : repoId;
-      }
-      return '';
-    } catch (e) {
-      return '';
-    }
-  }
+  String _extractRepoIdFromUrl(String url) => _modelConfig.getRepoIdFromUrl(url) ?? '';
 
   @override
   void onClose() {

@@ -1,4 +1,4 @@
-import '../security/security_config.dart';
+import '../../core/security/security_config.dart';
 
 /// Ensures complete data isolation between customers/users
 /// 

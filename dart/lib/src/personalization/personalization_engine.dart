@@ -7,7 +7,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'activity_event.dart';
 import 'profile_manager.dart';
-import 'core/types.dart' show TaskType;
+import '../../core/types.dart' show TaskType;
 
 /// Personalization engine that learns from user activity
 class PersonalizationEngine {

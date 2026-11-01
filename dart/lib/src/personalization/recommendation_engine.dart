@@ -6,7 +6,7 @@
 import 'package:flutter/foundation.dart';
 import 'personalization_engine.dart';
 import 'action_registry.dart';
-import 'core/types.dart';
+import '../../core/types.dart';
 
 /// Recommendation configuration
 class RecommendationConfig {
