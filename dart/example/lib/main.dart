@@ -9,6 +9,7 @@ import 'ui/screens/home_screen.dart';
 import 'ui/screens/settings_screen.dart';
 import 'ui/widgets/security_badge.dart';
 import 'ui/widgets/model_summary_card.dart';
+import 'core/firebase_setup.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,10 +36,32 @@ class AiSdkApp extends StatelessWidget {
       defaultTransition: Transition.fadeIn,
       transitionDuration: const Duration(milliseconds: 300),
       builder: (context, child) {
-        // Add security badge to all app bars
+        // Show Firebase config status in debug mode
         return Stack(
           children: [
             child ?? const SizedBox.shrink(),
+            if (kDebugMode)
+              Positioned(
+                top: 4,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValue(0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Firebase: ${FirebaseConfigValidator.getSetupStatus()}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
           ],
         );
       },

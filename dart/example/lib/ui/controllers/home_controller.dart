@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/model_catalog.dart';
+import '../../core/firebase_remote_config.dart';
 import '../../core/utils/router.dart';
 import '../../data/repositories/ai_repository.dart';
 import '../../core/bindings/app_bindings.dart';
@@ -12,8 +13,9 @@ import '../../core/bindings/app_bindings.dart';
 class HomeController extends GetxController {
   final AdaptiveAgentEngine _engine;
   final AiRepository _repository;
+  final FirebaseRemoteConfigService _firebaseConfig;
 
-  HomeController(this._engine, this._repository);
+  HomeController(this._engine, this._repository, this._firebaseConfig);
 
   // Observable state
   final _status = ''.obs;
@@ -52,14 +54,32 @@ class HomeController extends GetxController {
     super.onInit();
     _checkSecurityStatus();
     _updateModelStatus();
+    // Load models asynchronously (Firebase may delay this)
     _loadAvailableModels();
   }
 
-  void _loadAvailableModels() {
-    // Load all available HuggingFace models
+  void _loadAvailableModels() async {
+    // First try to load from Firebase Remote Config
+    try {
+      await _firebaseConfig.fetchConfig();
+      final remoteModels = _firebaseConfig.getConfiguredModels();
+      
+      if (remoteModels.isNotEmpty) {
+        // Use remote configuration
+        _availableModels.value = remoteModels
+            .where((m) => m.enabled)
+            .map((m) => m.toCatalogEntry())
+            .toList();
+        return;
+      }
+    } catch (e) {
+      // Firebase not available, fall back to local
+    }
+    
+    // Fallback: use local HuggingFace models
     _availableModels.value = HuggingFaceModels.all;
     if (_availableModels.isEmpty) {
-      // Fallback: add a custom model entry
+      // Last resort: add a custom model entry
       _availableModels.add(HuggingFaceModels.custom(
         repoId: 'microsoft/DialogGPT-small',
         displayName: 'Custom Model',
@@ -138,6 +158,15 @@ class HomeController extends GetxController {
       return;
     }
 
+    // Check if model is allowed by Firebase Remote Config
+    if (!_firebaseConfig.isRepoAllowed(repoId) && 
+        _firebaseConfig.getAvailableModelRepos().isNotEmpty) {
+      _setStatus('Model not allowed: $repoId');
+      showSnackbar('This model is not available', isSuccessful: false);
+      _showModelPicker.value = false;
+      return;
+    }
+
     _isDownloading.value = true;
     _setStatus('${AppStrings.downloading} $repoId...');
 
@@ -209,6 +238,24 @@ class HomeController extends GetxController {
   // Set selected model by repo ID
   void setSelectedModel(String repoId) {
     _selectedModelRepo.value = repoId;
+  }
+
+  // Refresh Firebase Remote Config
+  Future<void> refreshRemoteConfig() async {
+    _setStatus('Refreshing model config...');
+    try {
+      final updated = await _firebaseConfig.fetchConfig();
+      if (updated) {
+        await _loadAvailableModels();
+        _setStatus('Model config updated from Firebase');
+        showSnackbar('Model configuration updated', isSuccessful: true);
+      } else {
+        _setStatus('Using cached model configuration');
+      }
+    } catch (e) {
+      _setStatus('Error refreshing config: $e');
+      showSnackbar('Failed to refresh config', isSuccessful: false);
+    }
   }
 
   // Run a task

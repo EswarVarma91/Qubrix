@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/model_catalog.dart';
+import '../../core/firebase_remote_config.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/security_badge.dart';
 import '../widgets/model_summary_card.dart';
@@ -72,9 +73,7 @@ class SettingsScreen extends GetView<HomeController> {
               ],
             ),
             
-            const SizedBox(height: 24),
-            
-            _buildSectionHeader(context, 'Security'),
+            const SizedBox(height: 24),              _buildSectionHeader(context, 'Security'),
             _buildSettingsList(
               context,
               [
@@ -99,6 +98,28 @@ class SettingsScreen extends GetView<HomeController> {
                   subtitle: 'Remove all downloaded models',
                   iconColor: AppColors.error,
                   onTap: controller.clearModelCache,
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 24),
+            
+            _buildSectionHeader(context, 'Firebase Config'),
+            _buildSettingsList(
+              context,
+              [
+                _SettingsTile(
+                  icon: Icons.cloud_sync,
+                  title: 'Refresh Model Config',
+                  subtitle: 'Update from Firebase Remote Config',
+                  iconColor: AppColors.primary,
+                  onTap: controller.refreshRemoteConfig,
+                ),
+                _SettingsTile(
+                  icon: Icons.settings_input_component,
+                  title: 'Remote Config Status',
+                  subtitle: _getRemoteConfigStatus(context),
+                  onTap: null, // Info only
                 ),
               ],
             ),
@@ -339,6 +360,17 @@ class SettingsScreen extends GetView<HomeController> {
       margin: const EdgeInsets.all(16),
       borderRadius: 8,
     );
+  }
+
+  String _getRemoteConfigStatus(BuildContext context) {
+    final remoteConfig = Get.find<FirebaseRemoteConfigService>();
+    final models = remoteConfig.getConfiguredModels();
+    
+    if (models.isEmpty) {
+      return 'Using local model catalog';
+    }
+    
+    return '${models.length} models from Firebase';
   }
 }
 

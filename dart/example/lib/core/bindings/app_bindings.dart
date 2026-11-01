@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import 'package:ai_sdk/ai_sdk.dart';
 import '../../data/repositories/ai_repository.dart';
 import 'package:ai_sdk/ai_sdk.dart' show IntegrityVerifier;
+import '../firebase_remote_config.dart';
 
 final getIt = GetIt.instance;
 
@@ -157,6 +158,11 @@ Future<void> initializeDependencies() async {
 
   // Repositories
   getIt.registerLazySingleton<AiRepository>(() => AiRepository(getIt()));
+
+  // Firebase Remote Config for model configuration
+  final firebaseConfig = FirebaseRemoteConfigService();
+  await firebaseConfig.initialize();
+  getIt.registerSingleton<FirebaseRemoteConfigService>(firebaseConfig);
 }
 
 /// GetX bindings for screens
@@ -167,6 +173,7 @@ class HomeBinding extends Bindings {
       () => HomeController(
         engine: Get.find<AdaptiveAgentEngine>(),
         repository: Get.find<AiRepository>(),
+        firebaseConfig: Get.find<FirebaseRemoteConfigService>(),
       ),
       tag: 'homeController',
     );
