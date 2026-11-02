@@ -177,7 +177,7 @@ class Recommendation {
         'workflowName': workflowName,
         'actionIds': actionIds,
       },
-      confidence: (frequency / 10).clamp(0.5, 0.95),
+      confidence: (frequency / 10).clamp(0.5, 0.95).toDouble(),
       reasons: [
         'Performed $frequency times',
         'Can save time on repeated actions',
@@ -312,10 +312,16 @@ class RecommendationEngine {
   final Map<String, DateTime> _lastShown = {};
   final List<Recommendation> _recentRecommendations = [];
 
+  /// Called when the user accepts an automation recommendation so the host
+  /// can create the actual workflow.
+  final Future<void> Function(Recommendation recommendation)?
+      onAutomationAccepted;
+
   RecommendationEngine({
     required this.personalizationEngine,
     required this.actionRegistry,
     RecommendationConfig? config,
+    this.onAutomationAccepted,
   }) : _config = config ?? const RecommendationConfig();
 
   /// Update configuration
@@ -383,7 +389,28 @@ class RecommendationEngine {
     // Return top recommendation
     if (filtered.isEmpty) return null;
 
-    return filtered.first;
+    final recommendation = filtered.first;
+    _recordShown(recommendation);
+    return recommendation;
+  }
+
+  /// Track that a recommendation was shown to the user.
+  void _recordShown(Recommendation recommendation) {
+    _lastShown[recommendation.id] = DateTime.now();
+
+    final index =
+        _recentRecommendations.indexWhere((r) => r.id == recommendation.id);
+    if (index >= 0) {
+      final existing = _recentRecommendations[index];
+      _recentRecommendations[index] =
+          existing.copyWith(timesShown: existing.timesShown + 1);
+      return;
+    }
+
+    _recentRecommendations.add(recommendation.copyWith(timesShown: 1));
+    if (_recentRecommendations.length > 50) {
+      _recentRecommendations.removeAt(0);
+    }
   }
 
   /// Generate recommendations based on detected routines
@@ -408,10 +435,15 @@ class RecommendationEngine {
           description:
               'You perform this sequence regularly. Would you like to create a shortcut?',
           actionId: actionId,
+          actionParameters: {
+            'routineId': routine.routineId,
+            'actionIds': routine.steps.map((s) => s.actionId).toList(),
+          },
           confidence: routine.confidence,
           reasons: [
             'Performed ${routine.frequency} times',
-            'Pattern detected with ${routine.confidence.toStringAsFixed(0) * 100}% confidence',
+            'Pattern detected with '
+                '${(routine.confidence * 100).toStringAsFixed(0)}% confidence',
           ],
           category: 'automation',
           suggestedAction: 'Create automation',
@@ -504,7 +536,9 @@ class RecommendationEngine {
             description:
                 'Would you like to set up a quick access method for this?',
             actionId: action.id,
-            confidence: (feature.count / profile.totalUsageCount).clamp(0, 1),
+            confidence: (feature.count / profile.totalUsageCount)
+                .clamp(0.0, 1.0)
+                .toDouble(),
             reasons: [
               'Used ${feature.count} times',
               'Average of ${feature.averageDurationMs.toStringAsFixed(0)}ms per use',
@@ -693,31 +727,26 @@ class RecommendationEngine {
     }).toList();
   }
 
-  /// Accept a recommendation
+  /// Accept a recommendation.
+  ///
+  /// Accepting an automation recommendation asks the host app to create the
+  /// workflow through [onAutomationAccepted]. Unknown ids are ignored.
   Future<void> acceptRecommendation(String recommendationId) async {
-    final rec = _recentRecommendations.firstWhere(
-      (r) => r.id == recommendationId,
-      orElse: () => throw Exception('Recommendation not found'),
-    );
+    final index =
+        _recentRecommendations.indexWhere((r) => r.id == recommendationId);
+    if (index < 0) return;
 
-    // Update tracking
+    final rec = _recentRecommendations[index];
     _trackRecommendation(recommendationId, accepted: true);
 
-    // If this is an automation recommendation, create the automation
     if (rec.type == RecommendationType.automation && rec.actionId != null) {
       await _createAutomationFromRecommendation(rec);
     }
-
-    // Update personalization with acceptance
-    // This helps the system learn which recommendations are useful
   }
 
   /// Dismiss a recommendation
   void dismissRecommendation(String recommendationId) {
     _trackRecommendation(recommendationId, dismissed: true);
-
-    // Update personalization to reduce future similar recommendations
-    // This helps the system learn which recommendations are not useful
   }
 
   /// Track a recommendation interaction
@@ -726,24 +755,22 @@ class RecommendationEngine {
     bool accepted = false,
     bool dismissed = false,
   }) {
-    final now = DateTime.now();
-    _lastShown[recommendationId] = now;
+    _lastShown[recommendationId] = DateTime.now();
 
-    final index = _recentRecommendations.indexWhere((r) => r.id == recommendationId);
-    if (index >= 0) {
-      final rec = _recentRecommendations[index];
-      _recentRecommendations[index] = rec.copyWith(
-        timesShown: rec.timesShown + 1,
-        timesAccepted: accepted ? rec.timesAccepted + 1 : rec.timesAccepted,
-        timesDismissed: dismissed ? rec.timesDismissed + 1 : rec.timesDismissed,
-      );
-    }
+    final index =
+        _recentRecommendations.indexWhere((r) => r.id == recommendationId);
+    if (index < 0) return;
+
+    final rec = _recentRecommendations[index];
+    _recentRecommendations[index] = rec.copyWith(
+      timesAccepted: accepted ? rec.timesAccepted + 1 : rec.timesAccepted,
+      timesDismissed: dismissed ? rec.timesDismissed + 1 : rec.timesDismissed,
+    );
   }
 
   /// Create an automation from a recommendation
   Future<void> _createAutomationFromRecommendation(Recommendation rec) async {
-    // In a real implementation, this would create an automation workflow
-    // using the automation engine
+    await onAutomationAccepted?.call(rec);
   }
 
   /// Get recent recommendations
@@ -870,7 +897,7 @@ extension RecommendationExtensions on Recommendation {
         'workflowName': workflowName,
         'actionIds': actionIds,
       },
-      confidence: (frequency / 10).clamp(0.5, 0.95),
+      confidence: (frequency / 10).clamp(0.5, 0.95).toDouble(),
       reasons: [
         'Performed $frequency times',
         'Can save time on repeated actions',

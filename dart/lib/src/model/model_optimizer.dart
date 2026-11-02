@@ -42,7 +42,8 @@ class ModelCandidate {
         ((downloadSize / 1024 / 1024) / 1000) - // Normalize to 0-1 scale
         ((memoryRequirement / 1024 / 1024) / 1000);
 
-    return estimatedQuality * 0.6 + (resourceScore.clamp(0, 1)) * 0.4;
+    return estimatedQuality * 0.6 +
+        resourceScore.clamp(0.0, 1.0).toDouble() * 0.4;
   }
 
   /// Check if this candidate meets minimum quality requirements
@@ -468,7 +469,7 @@ class ModelOptimizer {
     }
 
     // Ensure quality doesn't exceed 1.0
-    adjustedQuality = adjustedQuality.clamp(0.0, 1.0);
+    adjustedQuality = adjustedQuality.clamp(0.0, 1.0).toDouble();
 
     // Calculate failure rate (inversely related to quality)
     final failureRate = (1.0 - adjustedQuality) * 100;
@@ -653,7 +654,9 @@ class ModelOptimizer {
       parts.add('requires ${candidate.downloadSize ~/ 1024 ~/ 1024}MB download');
     }
 
-    parts.add('provides ${candidate.measuredQualityScore.toStringAsFixed(0) * 100}% task accuracy');
+    parts.add('provides '
+        '${(candidate.measuredQualityScore * 100).toStringAsFixed(0)}% '
+        'task accuracy');
 
     if (candidate.memoryRequirement < 100 * 1024 * 1024) {
       parts.add('uses minimal memory (${candidate.memoryRequirement ~/ 1024 ~/ 1024}MB)');

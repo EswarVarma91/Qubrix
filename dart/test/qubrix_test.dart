@@ -1134,4 +1134,151 @@ void main() {
       await engine.dispose();
     });
   });
+
+  group('Learning Loop: listen, learn, automate', () {
+    late AdaptiveAgentEngine engine;
+    var searchCalls = 0;
+    var cartCalls = 0;
+
+    setUp(() async {
+      searchCalls = 0;
+      cartCalls = 0;
+
+      engine = AdaptiveAgentEngine(
+        config: const AgentEngineConfig(
+          enableModelManagement: false,
+          enablePersonalization: true,
+          enableRecommendations: true,
+          enableAutomation: true,
+        ),
+      );
+      await engine.initialize();
+
+      engine.actionRegistry.registerActionWithHandler(
+        const ActionDefinition(
+          id: 'search_product',
+          name: 'Search products',
+          description: 'Search the catalogue',
+          canBeAutomated: true,
+        ),
+        (params) {
+          searchCalls++;
+          return {'results': 3};
+        },
+      );
+      engine.actionRegistry.registerActionWithHandler(
+        const ActionDefinition(
+          id: 'add_to_cart',
+          name: 'Add to cart',
+          description: 'Add the found product to the cart',
+          canBeAutomated: true,
+        ),
+        (params) {
+          cartCalls++;
+          return {'added': true};
+        },
+      );
+
+      await engine.requestPermission(
+        actionId: 'search_product',
+        level: PermissionLevel.execute,
+      );
+      await engine.requestPermission(
+        actionId: 'add_to_cart',
+        level: PermissionLevel.execute,
+      );
+
+      // The user repeats the same two actions six times.
+      for (var i = 0; i < 6; i++) {
+        await engine.trackAction('search_product', name: 'Search products');
+        await engine.trackAction('add_to_cart', name: 'Add to cart');
+      }
+    });
+
+    tearDown(() async {
+      await engine.dispose();
+    });
+
+    test('listens and persists what the user actually does', () async {
+      final profile = await engine.getUserProfile();
+
+      expect(profile, isNotNull);
+      expect(profile!.usageStats.totalEvents, 12);
+      expect(profile.getMostUsedFeatures(), isNotEmpty);
+      expect(
+        profile.usageStats.featureUsage
+            .firstWhere((f) => f.featureId == 'search_product')
+            .count,
+        6,
+      );
+    });
+
+    test('detects the repeated routine', () async {
+      final routines = await engine.getDetectedRoutines();
+      expect(routines, isNotEmpty);
+
+      final sequence = routines.firstWhere(
+        (r) =>
+            r.steps.length == 2 &&
+            r.steps.first.actionId == 'search_product' &&
+            r.steps.last.actionId == 'add_to_cart',
+        orElse: () => throw StateError('routine was not detected'),
+      );
+
+      expect(sequence.frequency, greaterThanOrEqualTo(3));
+      expect(sequence.confidence, greaterThanOrEqualTo(0.7));
+    });
+
+    test('turns the routine into an automation and runs it', () async {
+      final candidates = await engine.getAutomationCandidates();
+      expect(candidates, isNotEmpty);
+
+      final routine = candidates.firstWhere(
+        (r) => r.steps.length == 2,
+        orElse: () => candidates.first,
+      );
+
+      final workflow = await engine.registerRoutineAutomation(
+        routine.routineId,
+        level: AutomationLevel.execute,
+      );
+      expect(workflow, isNotNull);
+      expect(engine.automationEngine.getWorkflow(workflow!.id), isNotNull);
+
+      final result = await engine.runAutomation(
+        workflow.id,
+        requireConfirmation: false,
+      );
+
+      expect(result.success, isTrue);
+      expect(searchCalls, 1);
+      expect(cartCalls, 1);
+
+      final profile = await engine.getUserProfile();
+      final stored = profile!.routines
+          .firstWhere((r) => r.routineId == routine.routineId);
+      expect(stored.status, RoutineStatus.automated);
+    });
+
+    test('accepting an automation recommendation registers a workflow',
+        () async {
+      final recommendation = await engine.getRecommendation(
+        contextType: 'feature',
+      );
+
+      expect(recommendation, isNotNull);
+      expect(recommendation!.type, RecommendationType.automation);
+
+      await engine.acceptRecommendation(recommendation.id);
+
+      final workflows = engine.automationEngine.workflows;
+      expect(workflows, isNotEmpty);
+      expect(
+        workflows.any(
+          (w) => w.metadata?['recommendationId'] == recommendation.id,
+        ),
+        isTrue,
+      );
+    });
+  });
 }

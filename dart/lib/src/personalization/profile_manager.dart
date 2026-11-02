@@ -964,7 +964,7 @@ class ProfileManager {
       if (existing != null) {
         newPreferences[key] = existing.copyWith(
           value: prefValue,
-          confidence: (existing.confidence + 0.1).clamp(0, 1),
+          confidence: (existing.confidence + 0.1).clamp(0.0, 1.0).toDouble(),
           confirmationCount: existing.confirmationCount + 1,
           lastUsed: DateTime.now(),
         );
@@ -983,6 +983,39 @@ class ProfileManager {
     // Save updated profile
     // await _saveProfile(profile.copyWith(preferences: newPreferences));
     _cachedProfile = profile.copyWith(preferences: newPreferences);
+  }
+
+  /// Persist updated usage statistics on the profile.
+  Future<void> updateUsageStats(FeatureUsageStats stats) async {
+    final profile = await getUserProfile();
+    _cachedProfile = profile.copyWith(usageStats: stats);
+  }
+
+  /// Persist the detected routines on the profile.
+  Future<void> updateRoutines(List<DetectedRoutine> routines) async {
+    final profile = await getUserProfile();
+
+    final limited = routines.length > _config.maxRoutines
+        ? routines.take(_config.maxRoutines).toList()
+        : routines;
+
+    _cachedProfile = profile.copyWith(routines: List.unmodifiable(limited));
+  }
+
+  /// Insert or replace a single routine.
+  Future<void> upsertRoutine(DetectedRoutine routine) async {
+    final profile = await getUserProfile();
+    final routines = List<DetectedRoutine>.from(profile.routines);
+    final index =
+        routines.indexWhere((r) => r.routineId == routine.routineId);
+
+    if (index >= 0) {
+      routines[index] = routine;
+    } else {
+      routines.add(routine);
+    }
+
+    await updateRoutines(routines);
   }
 
   /// Clear all personalization data

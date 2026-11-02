@@ -17,6 +17,7 @@ import '../model/compatibility_engine.dart';
 import '../automation/action_registry.dart';
 import '../automation/permission_manager.dart';
 import '../automation/automation_engine.dart';
+import '../personalization/activity_event.dart';
 import '../personalization/personalization_engine.dart';
 import '../personalization/profile_manager.dart';
 import '../personalization/recommendation_engine.dart';
@@ -60,7 +61,9 @@ enum AgentEventType {
   modelUnloaded,
   taskCompleted,
   taskFailed,
+  activityRecorded,
   recommendationGenerated,
+  automationRegistered,
   securityEvent,
   error,
 }
@@ -148,6 +151,7 @@ class AdaptiveAgentEngine {
       _recommendationEngine = RecommendationEngine(
         personalizationEngine: _personalizationEngine!,
         actionRegistry: _actionRegistry,
+        onAutomationAccepted: _registerAutomationFromRecommendation,
       );
     }
 
@@ -175,6 +179,118 @@ class AdaptiveAgentEngine {
       message: 'Action registered: ${action.id}',
       data: {'actionId': action.id},
     );
+  }
+
+  /// Record an observed user interaction.
+  ///
+  /// This is the listening half of the personalization loop: report the
+  /// interactions that matter and the SDK learns the routines the user repeats
+  /// so they can be automated.
+  Future<void> recordActivity(ActivityEvent event) async {
+    _ensureUsable();
+    await _personalizationEngine?.recordActivity(event);
+    _emit(
+      AgentEventType.activityRecorded,
+      message: event.eventType.name,
+      data: {
+        'eventId': event.eventId,
+        'actionId': event.actionId,
+        'taskType': event.taskType?.name,
+      },
+    );
+  }
+
+  /// Report a repeated app action (a feature tap, a command, ...).
+  Future<void> trackAction(
+    String actionId, {
+    String? name,
+    int durationMs = 0,
+    Map<String, dynamic>? context,
+  }) {
+    return recordActivity(ActivityEvent(
+      eventType: ActivityEventType.featureUsage,
+      actionId: actionId,
+      durationMs: durationMs,
+      context: {
+        'featureName': name ?? actionId,
+        ...?context,
+      },
+    ));
+  }
+
+  /// Routines learned from repeated user activity, most frequent first.
+  Future<List<DetectedRoutine>> getDetectedRoutines({int limit = 10}) async {
+    final profile = await _profileManager?.getUserProfile();
+    return profile?.getMostFrequentRoutines(limit: limit) ?? const [];
+  }
+
+  /// Detected routines that are frequent and confident enough to automate.
+  Future<List<DetectedRoutine>> getAutomationCandidates({int limit = 5}) async {
+    final routines = await getDetectedRoutines(limit: 50);
+    return routines
+        .where((r) => r.steps.isNotEmpty && r.isReadyForSuggestion)
+        .take(limit)
+        .toList();
+  }
+
+  /// Build and register an automation workflow from a learned routine.
+  ///
+  /// The workflow defaults to [AutomationLevel.suggest], so nothing runs until
+  /// the host app executes it explicitly.
+  Future<WorkflowDefinition?> registerRoutineAutomation(
+    String routineId, {
+    AutomationLevel level = AutomationLevel.suggest,
+  }) async {
+    _ensureUsable();
+
+    final profile = await _profileManager?.getUserProfile();
+    if (profile == null) return null;
+
+    final index = profile.routines.indexWhere((r) => r.routineId == routineId);
+    if (index < 0) return null;
+
+    final routine = profile.routines[index];
+    if (routine.steps.isEmpty) return null;
+
+    final workflow = _workflowFromRoutine(routine, level: level);
+    _automationEngine.registerWorkflow(workflow);
+    await _profileManager?.upsertRoutine(
+      routine.copyWith(status: RoutineStatus.automated),
+    );
+
+    _emit(
+      AgentEventType.automationRegistered,
+      message: workflow.name,
+      data: {'workflowId': workflow.id, 'routineId': routineId},
+    );
+    return workflow;
+  }
+
+  /// Run a registered automation workflow.
+  Future<WorkflowResult> runAutomation(
+    String workflowId, {
+    Map<String, dynamic> parameters = const {},
+    AutomationLevel level = AutomationLevel.execute,
+    bool requireConfirmation = true,
+  }) {
+    _ensureUsable();
+    return _automationEngine.executeWorkflow(
+      workflowId,
+      parameters: parameters,
+      level: level,
+      requireConfirmation: requireConfirmation,
+    );
+  }
+
+  /// Accept a generated recommendation, creating its automation if it has one.
+  Future<void> acceptRecommendation(String recommendationId) async {
+    _ensureUsable();
+    await _recommendationEngine?.acceptRecommendation(recommendationId);
+  }
+
+  /// Dismiss a generated recommendation.
+  void dismissRecommendation(String recommendationId) {
+    _recommendationEngine?.dismissRecommendation(recommendationId);
   }
 
   /// Request permission to perform an action.
@@ -327,6 +443,111 @@ class AdaptiveAgentEngine {
   /// Remove a previously registered listener.
   void removeEventListener(void Function(AgentEvent event) listener) {
     _listeners.remove(listener);
+  }
+
+  /// Build a workflow from a learned routine.
+  WorkflowDefinition _workflowFromRoutine(
+    DetectedRoutine routine, {
+    required AutomationLevel level,
+  }) {
+    final workflowId = 'routine_${_slug(routine.routineId)}';
+    final steps = routine.steps.asMap().entries.map((entry) {
+      final step = entry.value;
+      return WorkflowStep(
+        id: '${workflowId}_step_${entry.key}',
+        actionId: step.actionId,
+        name: step.name,
+        parameters: step.typicalParameters,
+        dependsOn: entry.key == 0
+            ? const []
+            : ['${workflowId}_step_${entry.key - 1}'],
+        level: level,
+        requiresConfirmation: step.requiresConfirmation,
+        order: step.order,
+      );
+    }).toList();
+
+    return WorkflowDefinition(
+      id: workflowId,
+      name: 'Automate ${routine.name}',
+      description: routine.description,
+      steps: steps,
+      defaultLevel: level,
+      createdAt: DateTime.now(),
+      metadata: {
+        'routineId': routine.routineId,
+        'frequency': routine.frequency,
+        'confidence': routine.confidence,
+      },
+    );
+  }
+
+  /// Register an automation when the user accepts an automation recommendation.
+  Future<void> _registerAutomationFromRecommendation(
+    Recommendation recommendation,
+  ) async {
+    final parameters = recommendation.actionParameters;
+    final actionIds =
+        (parameters?['actionIds'] as List<dynamic>?)
+            ?.map((id) => id.toString())
+            .toList() ??
+        [if (recommendation.actionId != null) recommendation.actionId!];
+    if (actionIds.isEmpty) return;
+
+    final workflowId = 'rec_${_slug(recommendation.id)}';
+    if (_automationEngine.getWorkflow(workflowId) != null) return;
+
+    final steps = actionIds.asMap().entries.map((entry) {
+      final actionId = entry.value;
+      return WorkflowStep(
+        id: '${workflowId}_step_${entry.key}',
+        actionId: actionId,
+        name: _actionRegistry.getAction(actionId)?.name ?? actionId,
+        dependsOn: entry.key == 0
+            ? const []
+            : ['${workflowId}_step_${entry.key - 1}'],
+        order: entry.key,
+      );
+    }).toList();
+
+    _automationEngine.registerWorkflow(WorkflowDefinition(
+      id: workflowId,
+      name: recommendation.title,
+      description: recommendation.description,
+      steps: steps,
+      defaultLevel: AutomationLevel.suggest,
+      metadata: {
+        'recommendationId': recommendation.id,
+        if (parameters?['routineId'] != null)
+          'routineId': parameters!['routineId'],
+      },
+    ));
+
+    final routineId = parameters?['routineId'];
+    if (routineId is String) {
+      final profile = await _profileManager?.getUserProfile();
+      final index =
+          profile?.routines.indexWhere((r) => r.routineId == routineId) ?? -1;
+      if (profile != null && index >= 0) {
+        await _profileManager?.upsertRoutine(
+          profile.routines[index].copyWith(status: RoutineStatus.automated),
+        );
+      }
+    }
+
+    _emit(
+      AgentEventType.automationRegistered,
+      message: recommendation.title,
+      data: {
+        'workflowId': workflowId,
+        'recommendationId': recommendation.id,
+      },
+    );
+  }
+
+  String _slug(String value) {
+    final slug = value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    return slug.isEmpty ? 'item' : slug;
   }
 
   void _emit(

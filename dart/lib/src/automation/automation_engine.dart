@@ -105,37 +105,41 @@ class WorkflowDefinition {
       steps.every((s) => s.isValid) &&
       _hasNoCycles();
 
-  /// Check for circular dependencies
+  /// Check that dependencies resolve and contain no cycles.
   bool _hasNoCycles() {
-    // Simple cycle detection for workflow steps
+    final stepIds = steps.map((s) => s.id).toSet();
+
+    // A dependency on a step that does not exist makes the workflow invalid.
+    for (final step in steps) {
+      for (final dependency in step.dependsOn) {
+        if (!stepIds.contains(dependency)) return false;
+      }
+    }
+
+    final visiting = <String>{};
     final visited = <String>{};
-    final stack = <String>{};
 
-    void visit(String stepId) {
-      if (stack.contains(stepId)) return; // Cycle detected
-      if (visited.contains(stepId)) return;
+    bool visit(String stepId) {
+      if (visited.contains(stepId)) return true;
+      if (visiting.contains(stepId)) return false; // Cycle detected
 
-      visited.add(stepId);
-      stack.add(stepId);
+      visiting.add(stepId);
+      final step = steps.firstWhere((s) => s.id == stepId);
 
-      final step = steps.firstWhere(
-        (s) => s.id == stepId,
-        orElse: () => throw Exception('Step not found'),
-      );
-
-      // Check dependencies
-      for (final dep in step.dependsOn) {
-        visit(dep);
+      for (final dependency in step.dependsOn) {
+        if (!visit(dependency)) return false;
       }
 
-      stack.remove(stepId);
+      visiting.remove(stepId);
+      visited.add(stepId);
+      return true;
     }
 
     for (final step in steps) {
-      visit(step.id);
+      if (!visit(step.id)) return false;
     }
 
-    return visited.length == steps.length;
+    return true;
   }
 
   WorkflowDefinition copyWith({
@@ -480,8 +484,10 @@ class AutomationEngine {
   final PermissionManager permissionManager;
 
   AutomationConfig _config;
+  final Map<String, WorkflowDefinition> _workflows = {};
   final Map<String, WorkflowState> _workflowStates = {};
-  final Map<String, DateTime> _lastExecution = {};
+  final Map<String, WorkflowResult> _idempotentResults = {};
+  final Map<String, List<DateTime>> _executionHistory = {};
 
   AutomationEngine({
     required this.actionRegistry,
@@ -504,8 +510,7 @@ class AutomationEngine {
   }) async {
     final stopwatch = Stopwatch()..start();
 
-    // Check if workflow exists
-    final workflow = _getWorkflow(workflowId);
+    final workflow = getWorkflow(workflowId);
     if (workflow == null) {
       return WorkflowResult(
         workflowId: workflowId,
@@ -516,8 +521,10 @@ class AutomationEngine {
       );
     }
 
-    // Check permissions
-    if (!permissionManager.hasPermission(workflowId, PermissionLevel.execute)) {
+    // Permissions are granted per action, so a workflow-level record is
+    // optional; when one exists it must not be denied.
+    final workflowPermission = permissionManager.getPermission(workflowId);
+    if (workflowPermission != null && !workflowPermission.granted) {
       return WorkflowResult(
         workflowId: workflowId,
         success: false,
@@ -527,26 +534,20 @@ class AutomationEngine {
       );
     }
 
-    // Check for idempotency
+    // Suggest and prepare stop before executing anything.
+    if (level != AutomationLevel.execute) {
+      return _previewWorkflow(workflow, level: level, stopwatch: stopwatch);
+    }
+
+    // Replay the previous result instead of running the steps twice.
     if (_config.enableIdempotency && idempotencyKey != null) {
-      final existing = _lastExecution[idempotencyKey];
-      if (existing != null &&
-          DateTime.now().difference(existing) < const Duration(minutes: 5)) {
-        // Return cached result (would need to store results)
-        return WorkflowResult(
-          workflowId: workflowId,
-          success: true,
-          duration: stopwatch.elapsed,
-          completedAt: DateTime.now(),
-          stepResults: [
-            StepResult(
-              stepId: 'idempotent',
-              actionId: workflowId,
-              success: true,
-              duration: Duration.zero,
-            )
-          ],
-        );
+      final cached = _idempotentResults[idempotencyKey];
+      if (cached != null) {
+        if (DateTime.now().difference(cached.completedAt) <
+            const Duration(minutes: 5)) {
+          return cached;
+        }
+        _idempotentResults.remove(idempotencyKey);
       }
     }
 
@@ -556,12 +557,26 @@ class AutomationEngine {
     try {
       final stepResults = <StepResult>[];
 
-      // Execute each step
-      for (final step in workflow.steps) {
-        // Check if step requires confirmation
-        if (requireConfirmation && step.requiresConfirmation) {
+      // Execute each step in dependency order
+      for (final step in _orderedSteps(workflow)) {
+        // A step that needs approval stops the workflow instead of silently
+        // running anyway.
+        final action = actionRegistry.getAction(step.actionId);
+        final needsApproval = step.requiresConfirmation ||
+            (action?.requiresStrongConfirmation ?? false);
+
+        if (requireConfirmation && needsApproval) {
           _workflowStates[workflowId] = WorkflowState.awaitingConfirmation;
-          // In real implementation, would wait for user confirmation
+          stopwatch.stop();
+          return WorkflowResult(
+            workflowId: workflowId,
+            success: false,
+            errorMessage: 'Confirmation required before step "${step.name}". '
+                'Re-run with requireConfirmation: false once approved.',
+            stepResults: stepResults,
+            duration: stopwatch.elapsed,
+            completedAt: DateTime.now(),
+          );
         }
 
         // Check permission for this step
@@ -600,12 +615,7 @@ class AutomationEngine {
       final success = stepResults.isNotEmpty &&
           stepResults.every((s) => s.success);
 
-      // Update last execution for idempotency
-      if (_config.enableIdempotency && idempotencyKey != null) {
-        _lastExecution[idempotencyKey] = DateTime.now();
-      }
-
-      return WorkflowResult(
+      final result = WorkflowResult(
         workflowId: workflowId,
         success: success,
         errorMessage: success ? null : 'One or more steps failed',
@@ -613,6 +623,20 @@ class AutomationEngine {
         duration: stopwatch.elapsed,
         completedAt: DateTime.now(),
       );
+
+      if (success) {
+        _workflowStates[workflowId] = WorkflowState.completed;
+        _executionHistory
+            .putIfAbsent(workflowId, () => <DateTime>[])
+            .add(result.completedAt);
+
+        // Keep a real cached result for idempotent replays.
+        if (_config.enableIdempotency && idempotencyKey != null) {
+          _idempotentResults[idempotencyKey] = result;
+        }
+      }
+
+      return result;
     } catch (e) {
       stopwatch.stop();
       _workflowStates[workflowId] = WorkflowState.failed;
@@ -654,14 +678,17 @@ class AutomationEngine {
         ...workflowParameters,
       };
 
-      // Execute the action
-      final output = actionRegistry.executeAction(
+      // Execute the action (async handlers are supported too)
+      var output = actionRegistry.executeAction(
         step.actionId,
         params,
         idempotencyKey: step.isCritical && _config.enableIdempotency
             ? idempotencyKey
             : null,
       );
+      if (output is Future) {
+        output = await output;
+      }
 
       stopwatch.stop();
 
@@ -685,11 +712,111 @@ class AutomationEngine {
     }
   }
 
-  /// Get workflow definition
-  WorkflowDefinition? _getWorkflow(String workflowId) {
-    // In a real implementation, this would retrieve from stored workflows
-    // For now, return null (workflow not found)
-    return null;
+  /// Register a workflow so it can be executed.
+  void registerWorkflow(WorkflowDefinition workflow) {
+    if (!workflow.isValid) {
+      throw ArgumentError(
+        'Invalid workflow "${workflow.id}": steps must be non-empty, valid '
+        'and free of cycles or unknown dependencies.',
+      );
+    }
+    _workflows[workflow.id] = workflow;
+  }
+
+  /// Remove a registered workflow.
+  bool unregisterWorkflow(String workflowId) {
+    _workflowStates.remove(workflowId);
+    return _workflows.remove(workflowId) != null;
+  }
+
+  /// Get a registered workflow.
+  WorkflowDefinition? getWorkflow(String workflowId) =>
+      _workflows[workflowId];
+
+  /// All registered workflows.
+  List<WorkflowDefinition> get workflows =>
+      List.unmodifiable(_workflows.values);
+
+  /// Suggest or prepare a workflow without executing any step.
+  Future<WorkflowResult> _previewWorkflow(
+    WorkflowDefinition workflow, {
+    required AutomationLevel level,
+    required Stopwatch stopwatch,
+  }) async {
+    final stepResults = <StepResult>[];
+
+    for (final step in _orderedSteps(workflow)) {
+      final action = actionRegistry.getAction(step.actionId);
+      final permitted = permissionManager.hasPermission(
+        step.actionId,
+        PermissionLevel.execute,
+      );
+      final ready = action != null && permitted;
+
+      stepResults.add(StepResult(
+        stepId: step.id,
+        actionId: step.actionId,
+        success: ready,
+        errorMessage: action == null
+            ? 'Action not found: ${step.actionId}'
+            : permitted
+                ? null
+                : 'Permission denied',
+        duration: Duration.zero,
+        context: {
+          'prepared': ready,
+          'level': level.name,
+          'description': step.description,
+        },
+      ));
+    }
+
+    _workflowStates[workflow.id] = WorkflowState.pending;
+    stopwatch.stop();
+
+    final ready = stepResults.every((s) => s.success);
+
+    return WorkflowResult(
+      workflowId: workflow.id,
+      // A suggestion always succeeds; a prepared plan only succeeds when every
+      // step is ready to run.
+      success: level == AutomationLevel.suggest ? true : ready,
+      errorMessage: level == AutomationLevel.suggest || ready
+          ? null
+          : 'Workflow is not ready to run',
+      stepResults: stepResults,
+      duration: stopwatch.elapsed,
+      completedAt: DateTime.now(),
+    );
+  }
+
+  /// Order steps by dependency, then by [WorkflowStep.order].
+  List<WorkflowStep> _orderedSteps(WorkflowDefinition workflow) {
+    final remaining = List<WorkflowStep>.from(workflow.steps);
+    final ordered = <WorkflowStep>[];
+    final placed = <String>{};
+
+    while (remaining.isNotEmpty) {
+      final ready = remaining
+          .where((s) => s.dependsOn.every(placed.contains))
+          .toList()
+        ..sort((a, b) => a.order.compareTo(b.order));
+
+      if (ready.isEmpty) {
+        // Unreachable for registered (validated) workflows, but never drop
+        // steps silently.
+        ordered.addAll(remaining);
+        break;
+      }
+
+      for (final step in ready) {
+        ordered.add(step);
+        placed.add(step.id);
+        remaining.remove(step);
+      }
+    }
+
+    return ordered;
   }
 
   /// Create a workflow from an execution plan
@@ -717,7 +844,9 @@ class AutomationEngine {
       createdAt: DateTime.now(),
     );
 
-    // Execute the workflow
+    // Plans produce dynamic workflows, so register before executing them.
+    registerWorkflow(workflow);
+
     return executeWorkflow(
       workflow.id,
       parameters: additionalParameters ?? {},
@@ -811,8 +940,9 @@ class AutomationEngine {
 
   /// Get workflow execution history
   List<DateTime> getExecutionHistory(String workflowId) {
-    // In a real implementation, would return actual history
-    return [];
+    return List.unmodifiable(
+      _executionHistory[workflowId] ?? const <DateTime>[],
+    );
   }
 
   /// Check engine health
@@ -824,6 +954,9 @@ class AutomationEngine {
   Future<void> dispose() async {
     pauseAllWorkflows();
     _workflowStates.clear();
+    _workflows.clear();
+    _idempotentResults.clear();
+    _executionHistory.clear();
   }
 
   /// Get configuration

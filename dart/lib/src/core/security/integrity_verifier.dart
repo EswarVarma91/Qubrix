@@ -175,7 +175,7 @@ class IntegrityVerifier {
     if (modelSize < 1024) score -= 0.1; // Too small
     if (modelSize > 100 * 1024 * 1024) score -= 0.1; // Too large
 
-    return score.clamp(0.0, 1.0);
+    return score.clamp(0.0, 1.0).toDouble();
   }
 
   /// Log security event

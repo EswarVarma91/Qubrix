@@ -27,7 +27,7 @@ class SecureDeleteManager {
   SecureDeleteManager({
     required this.config,
     int overwritePasses = 3,
-  }) : _overwritePasses = overwritePasses.clamp(1, 35);
+  }) : _overwritePasses = overwritePasses.clamp(1, 35).toInt();
 
   List<SecurityEvent> get events => List.unmodifiable(_events);
   void clearEvents() => _events.clear();

@@ -19,6 +19,8 @@ class PersonalizationEngine {
   // Debouncing for pattern updates
   DateTime? _lastPatternUpdate;
   static const Duration _patternUpdateInterval = Duration(minutes: 1);
+  int _eventsSincePatternUpdate = 0;
+  static const int _patternUpdateEventThreshold = 5;
 
   PersonalizationEngine({
     required this.profileManager,
@@ -26,8 +28,14 @@ class PersonalizationEngine {
     int maxRecentActivity = 1000,
   }) : _maxRecentActivity = maxRecentActivity;
 
-  /// Record an activity event
+  /// Record an activity event.
+  ///
+  /// This is the SDK's listening entry point: every interaction the host app
+  /// reports flows through here, which is what lets the engine learn the
+  /// routines a user repeats and turn them into automations.
   Future<void> recordActivity(ActivityEvent event) async {
+    if (!profileManager.isPersonalizationEnabled) return;
+
     // Apply privacy filter
     final filteredEvent = _applyPrivacyFilter(event);
 
@@ -80,7 +88,9 @@ class PersonalizationEngine {
     List<FeatureUsage> featureUsage = List.from(stats.featureUsage);
 
     if (event.eventType == ActivityEventType.featureUsage ||
-        event.eventType == ActivityEventType.taskExecution) {
+        event.eventType == ActivityEventType.taskExecution ||
+        event.eventType == ActivityEventType.workflowStart ||
+        event.eventType == ActivityEventType.workflowCompletion) {
       final featureId = event.actionId ?? event.taskType?.name ?? 'unknown';
       final featureName =
           event.context['featureName'] as String? ?? featureId;
@@ -119,186 +129,202 @@ class PersonalizationEngine {
       featureUsage: featureUsage,
       usageByDayOfWeek: dayStats,
       usageByHour: hourStats,
+      totalFeaturesUsed: featureUsage.length,
     );
 
-    await profileManager.updatePreferences({
-      'totalEvents': stats.totalEvents,
-      'totalSessions': stats.totalSessions,
-    });
+    // Persist the statistics on the profile. These used to be dropped, so
+    // feature usage never reached the recommendation or automation layers.
+    await profileManager.updateUsageStats(stats);
   }
 
-  /// Maybe update patterns (debounced)
+  /// Maybe update patterns.
+  ///
+  /// Detection is time debounced, but also runs after every
+  /// [_patternUpdateEventThreshold] recorded events so a burst of activity in a
+  /// single session is learned immediately instead of waiting a minute.
   Future<void> _maybeUpdatePatterns() async {
+    _eventsSincePatternUpdate++;
     final now = DateTime.now();
+    final intervalElapsed = _lastPatternUpdate == null ||
+        now.difference(_lastPatternUpdate!) >= _patternUpdateInterval;
 
-    if (_lastPatternUpdate == null) {
-      _lastPatternUpdate = now;
-      await _updatePatterns();
+    if (!intervalElapsed &&
+        _eventsSincePatternUpdate < _patternUpdateEventThreshold) {
       return;
     }
 
-    if (now.difference(_lastPatternUpdate!) >= _patternUpdateInterval) {
-      _lastPatternUpdate = now;
-      await _updatePatterns();
-    }
+    _lastPatternUpdate = now;
+    _eventsSincePatternUpdate = 0;
+    await _updatePatterns();
   }
 
-  /// Update detected patterns from recent activity
+  /// Update detected patterns from recent activity and persist the result.
   Future<void> _updatePatterns() async {
     final profile = await profileManager.getUserProfile();
+    if (!profile.config.personalizationEnabled) return;
 
-    // Detect sequential patterns (routines)
-    final sequences = _detectSequentialPatterns();
+    final routines = <String, DetectedRoutine>{
+      for (final routine in profile.routines) routine.routineId: routine,
+    };
 
-    // Detect temporal patterns (time-based routines)
-    final temporalPatterns = _detectTemporalPatterns();
-
-    // Detect feature usage patterns
-    final usagePatterns = _detectUsagePatterns();
-
-    // Merge new patterns with existing
-    final existingRoutines = Map<String, DetectedRoutine>.from(
-      profile.routines.fold<Map<String, DetectedRoutine>>(
-        {},
-        (map, r) => map..[r.routineId] = r,
-      ),
-    );
-
-    // Update existing routines with new observations
-    for (final seq in sequences) {
-      final key = seq['key'] as String;
-      if (existingRoutines.containsKey(key)) {
-        final existing = existingRoutines[key]!;
-        existingRoutines[key] = existing.copyWith(
-          frequency: existing.frequency + 1,
-          confidence: (existing.confidence * 0.9 +
-                  (seq['confidence'] as double) * 0.1)
-              .clamp(0, 1),
-          lastObserved: DateTime.now(),
-          status: RoutineStatus.observed,
-        );
-      } else {
-        existingRoutines[key] = DetectedRoutine(
-          routineId: key,
-          name: seq['name'] as String,
-          description: seq['description'] as String?,
-          steps: seq['steps'] as List<RoutineStep>,
-          frequency: 1,
-          confidence: seq['confidence'] as double,
-          detectedAt: DateTime.now(),
-          lastObserved: DateTime.now(),
-          status: RoutineStatus.needsMoreData,
-        );
-      }
+    // Repeated action sequences (routines).
+    for (final sequence in _detectSequentialPatterns(profile.config)) {
+      _mergeRoutine(routines, sequence);
     }
 
-    // Add temporal patterns
-    for (final pattern in temporalPatterns) {
-      final key = pattern['key'] as String;
-      if (!existingRoutines.containsKey(key)) {
-        existingRoutines[key] = DetectedRoutine(
-          routineId: key,
-          name: pattern['name'] as String,
-          description: pattern['description'] as String?,
-          steps: pattern['steps'] as List<RoutineStep>? ?? [],
-          frequency: pattern['frequency'] as int,
-          confidence: pattern['confidence'] as double,
-          typicalDays: pattern['typicalDays'] as List<int>?,
-          typicalTime: pattern['typicalTime'] as TimeRange?,
-          detectedAt: DateTime.now(),
-          status: RoutineStatus.observed,
-        );
-      }
+    // Time-based habits.
+    for (final temporal in _detectTemporalPatterns()) {
+      _mergeRoutine(routines, temporal);
     }
 
-    // Add feature usage patterns
-    for (final pattern in usagePatterns) {
-      final key = pattern['key'] as String;
-      existingRoutines.putIfAbsent(
-        key,
-        () => DetectedRoutine(
-          routineId: key,
-          name: pattern['name'] as String,
-          description: pattern['description'] as String?,
-          steps: (pattern['steps'] as List<RoutineStep>?) ?? const [],
-          frequency: pattern['frequency'] as int,
-          confidence: pattern['confidence'] as double,
-          detectedAt: DateTime.now(),
-          status: RoutineStatus.observed,
-        ),
-      );
+    // Single actions the user repeats a lot.
+    for (final usage in _detectUsagePatterns(profile)) {
+      _mergeRoutine(routines, usage);
     }
 
-    // Limit number of routines
-    final maxRoutines = profile.config.maxRoutines;
-    final sortedRoutines = existingRoutines.values.toList()
+    final sorted = routines.values.toList()
       ..sort((a, b) => b.frequency.compareTo(a.frequency));
 
-    final updatedRoutines = sortedRoutines.length > maxRoutines
-        ? sortedRoutines.take(maxRoutines).toList()
-        : sortedRoutines;
+    final limited = sorted.length > profile.config.maxRoutines
+        ? sorted.take(profile.config.maxRoutines).toList()
+        : sorted;
 
-    // Save updated profile
-    await profileManager.updatePreferences({
-      'routines_count': updatedRoutines.length,
-    });
+    // Persist routines, otherwise they are lost with the activity buffer.
+    await profileManager.updateRoutines(limited);
   }
 
-  /// Detect sequential patterns in activity
-  List<Map<String, dynamic>> _detectSequentialPatterns() {
+  /// Merge a freshly detected pattern into the routine map.
+  ///
+  /// Detection always runs over the whole activity window, so observation
+  /// counts are compared rather than accumulated (accumulating would double
+  /// count every pattern on each detection run).
+  void _mergeRoutine(
+    Map<String, DetectedRoutine> routines,
+    Map<String, dynamic> pattern,
+  ) {
+    final key = pattern['key'] as String;
+    final observed = (pattern['frequency'] as num?)?.toInt() ?? 1;
+    final confidence =
+        ((pattern['confidence'] as num?) ?? 0).toDouble().clamp(0.0, 1.0);
+    final steps = pattern['steps'] as List<RoutineStep>?;
+    final existing = routines[key];
+
+    if (existing == null) {
+      routines[key] = DetectedRoutine(
+        routineId: key,
+        name: pattern['name'] as String,
+        description: pattern['description'] as String?,
+        steps: steps ?? const [],
+        frequency: observed,
+        confidence: confidence,
+        typicalDays: pattern['typicalDays'] as List<int>?,
+        typicalTime: pattern['typicalTime'] as TimeRange?,
+        detectedAt: DateTime.now(),
+        lastObserved: DateTime.now(),
+        status: RoutineStatus.observed,
+      );
+      return;
+    }
+
+    // Never reset a routine the user already automated or dismissed.
+    final keepStatus = existing.status == RoutineStatus.automated ||
+        existing.status == RoutineStatus.dismissed;
+
+    routines[key] = existing.copyWith(
+      steps: existing.steps.isNotEmpty ? existing.steps : steps,
+      frequency:
+          observed > existing.frequency ? observed : existing.frequency,
+      confidence:
+          confidence > existing.confidence ? confidence : existing.confidence,
+      typicalDays: existing.typicalDays ?? pattern['typicalDays'] as List<int>?,
+      typicalTime: existing.typicalTime ?? pattern['typicalTime'] as TimeRange?,
+      lastObserved: DateTime.now(),
+      status: keepStatus ? existing.status : RoutineStatus.observed,
+    );
+  }
+
+  /// Detect repeated sequences of user actions.
+  ///
+  /// A sequence becomes a routine once it is repeated at least
+  /// [ProfileConfig.minRoutineFrequency] times. Confidence grows with the
+  /// number of repetitions (3 repeats -> 0.75, 5 -> 0.83, 10 -> 0.91).
+  List<Map<String, dynamic>> _detectSequentialPatterns(ProfileConfig config) {
     final patterns = <Map<String, dynamic>>[];
 
-    if (_recentActivity.length < 2) return patterns;
-
-    // Look for repeated sequences of actions
     final actionSequence = _recentActivity
-        .where((e) =>
-            e.eventType == ActivityEventType.featureUsage ||
-            e.eventType == ActivityEventType.taskExecution)
-        .map((e) => e.actionId ?? e.taskType?.name ?? 'unknown')
+        .where(_isRoutineEvent)
+        .map(_actionIdOf)
         .toList();
 
-    // Check for 2-3 action sequences
-    for (var seqLength = 2; seqLength <= 3 && seqLength <= actionSequence.length; seqLength++) {
-      final sequenceCounts = <String, int>{};
+    if (actionSequence.length < 2) return patterns;
 
+    final acceptedKeys = <String>[];
+
+    // Longest sequences first so a shorter fragment of the same routine is not
+    // reported as a second routine.
+    for (var seqLength = 3; seqLength >= 2; seqLength--) {
+      if (seqLength > actionSequence.length) continue;
+
+      final sequenceCounts = <String, int>{};
       for (var i = 0; i <= actionSequence.length - seqLength; i++) {
         final sequence = actionSequence.sublist(i, i + seqLength);
         final key = sequence.join(' -> ');
-
         sequenceCounts[key] = (sequenceCounts[key] ?? 0) + 1;
       }
 
-      // Find sequences that occur multiple times
       for (final entry in sequenceCounts.entries) {
-        if (entry.value >= profileManager.config.minRoutineFrequency) {
-          // Calculate confidence based on frequency
-          final confidence = (entry.value /
-                  (_recentActivity.length - seqLength + 1))
-              .clamp(0, 1);
+        if (entry.value < config.minRoutineFrequency) continue;
 
-          if (confidence >= profileManager.config.minPatternConfidence) {
-            final actions = entry.key.split(' -> ');
-            patterns.add({
-              'key': 'seq_${entry.key.hashCode}',
-              'name': 'Repeated sequence: ${actions.join(' → ')}',
-              'description': 'This sequence of actions is performed repeatedly',
-              'steps': actions.asMap().entries.map((e) {
-                return RoutineStep(
-                  actionId: e.value,
-                  name: e.value,
-                  order: e.key,
-                );
-              }).toList(),
-              'frequency': entry.value,
-              'confidence': confidence,
-            });
-          }
-        }
+        final actions = entry.key.split(' -> ');
+
+        // Repeating one action is captured by the shorter sequence.
+        if (seqLength > 2 && actions.toSet().length == 1) continue;
+
+        // Skip fragments of a longer routine that was already accepted.
+        if (acceptedKeys.any((key) => key.contains(entry.key))) continue;
+
+        final confidence = entry.value / (entry.value + 1);
+        if (confidence < config.minPatternConfidence) continue;
+
+        acceptedKeys.add(entry.key);
+        patterns.add({
+          'key': 'seq_${actions.map(_slug).join('_')}',
+          'name': 'Repeated sequence: ${actions.join(' → ')}',
+          'description': 'This sequence of ${actions.length} actions was '
+              'performed ${entry.value} times and can be automated.',
+          'steps': actions.asMap().entries.map((e) {
+            return RoutineStep(
+              actionId: e.value,
+              name: e.value,
+              order: e.key,
+            );
+          }).toList(),
+          'frequency': entry.value,
+          'confidence': confidence,
+        });
       }
     }
 
     return patterns;
+  }
+
+  /// Whether an event participates in routine detection.
+  bool _isRoutineEvent(ActivityEvent event) {
+    return event.eventType == ActivityEventType.featureUsage ||
+        event.eventType == ActivityEventType.taskExecution ||
+        event.eventType == ActivityEventType.workflowStart ||
+        event.eventType == ActivityEventType.workflowCompletion;
+  }
+
+  /// The action identity used for routine detection.
+  String _actionIdOf(ActivityEvent event) {
+    return event.actionId ?? event.taskType?.name ?? event.taskId ?? 'unknown';
+  }
+
+  /// Stable identifier fragment for routine ids.
+  String _slug(String value) {
+    final slug = value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    return slug.isEmpty ? 'unknown' : slug;
   }
 
   /// Detect temporal patterns (time-based routines)
@@ -321,7 +347,8 @@ class PersonalizationEngine {
     // Find time periods with high activity
     for (final entry in timeBuckets.entries) {
       if (entry.value.length >= 5) {
-        final confidence = (entry.value.length / _recentActivity.length).clamp(0, 1);
+        final confidence =
+            (entry.value.length / _recentActivity.length).clamp(0.0, 1.0);
 
         if (confidence >= 0.1) {
           // Check which features are used most in this time period
@@ -335,7 +362,7 @@ class PersonalizationEngine {
             ..sort((a, b) => b.value.compareTo(a.value));
 
           patterns.add({
-            'key': 'time_${entry.key.hashCode}',
+            'key': 'time_${_slug(entry.key)}',
             'name': 'Active during ${entry.key}',
             'description': 'You are frequently active during this time period',
             'steps': topFeatures.take(3).map((f) {
@@ -396,46 +423,29 @@ class PersonalizationEngine {
     );
   }
 
-  /// Detect usage patterns
-  List<Map<String, dynamic>> _detectUsagePatterns() {
+  /// Detect single actions the user repeats a lot.
+  List<Map<String, dynamic>> _detectUsagePatterns(UserProfile profile) {
     final patterns = <Map<String, dynamic>>[];
 
-    final profile = profileManager.cachedProfile;
-    if (profile == null) return patterns;
+    for (final feature in profile.getMostUsedFeatures(limit: 5)) {
+      if (feature.count < 5) continue;
 
-    // Detect frequently used features
-    final sortedFeatures = profile.getMostUsedFeatures(limit: 5);
-
-    for (final feature in sortedFeatures) {
-      if (feature.count >= 5) {
-        // Check if this feature is used at specific times
-        final featureEvents = _recentActivity
-            .where((e) =>
-                (e.actionId == feature.featureId ||
-                    e.taskType?.name == feature.featureId) &&
-                e.timestamp.isAfter(
-                  DateTime.now().subtract(const Duration(days: 30)),
-                ))
-            .toList();
-
-        if (featureEvents.length >= 3) {
-          patterns.add({
-            'key': 'usage_${feature.featureId}_${DateTime.now().millisecondsSinceEpoch}',
-            'name': 'Frequent use of ${feature.featureName}',
-            'description':
-                'You use ${feature.featureName} frequently (${(feature.count)} times)',
-            'steps': [
-              RoutineStep(
-                actionId: feature.featureId,
-                name: feature.featureName,
-                order: 0,
-              )
-            ],
-            'frequency': feature.count,
-            'confidence': (feature.count / profile.totalUsageCount).clamp(0, 1),
-          });
-        }
-      }
+      patterns.add({
+        'key': 'usage_${_slug(feature.featureId)}',
+        'name': 'Frequent use of ${feature.featureName}',
+        'description': 'You used ${feature.featureName} ' 
+            '${feature.count} times; it can be automated as a shortcut.',
+        'steps': [
+          RoutineStep(
+            actionId: feature.featureId,
+            name: feature.featureName,
+            order: 0,
+          )
+        ],
+        'frequency': feature.count,
+        // Repeated use of a single action is a confident habit.
+        'confidence': 1.0,
+      });
     }
 
     return patterns;
