@@ -139,6 +139,10 @@ For development, staging, and production:
 2. Use build flavors or environment variables to switch between configs
 3. Configure different Remote Config parameters for each environment
 
+## Relation to Q&A training (do not mix)
+
+This file is the single source of truth for the **model URL** (`hf_model_url` → `SdkFirebaseOptions`). Q&A training never touches Firebase: hosts sync Q&A through their own backend and call `ingestKnowledge` / `askKnowledge`. See `../docs/SDK_TRAINING_GUIDE.md` (section 5) and `../docs/MAIN_APP_SYNC_COMPANION.md`.
+
 ## Summary
 
 - The SDK has its own Firebase project for Remote Config

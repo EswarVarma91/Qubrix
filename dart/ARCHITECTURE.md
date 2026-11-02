@@ -233,6 +233,20 @@ final plan = await automationEngine.generatePlan(
 );
 ```
 
+### 7b. Knowledge Store (`KnowledgeStore` + `knowledge_types.dart`)
+
+**Responsibility:** Learn host-supplied Q&A into a compact on-device index. No network, no Firebase, no model logic.
+
+**Key features:**
+- `QaPair` / `QaTrainingBundle` ingestion (`ingestKnowledge`, `upsertQaPairs`, `removeQaPairs`)
+- Normalized `question|lang` dedupe; newer `updatedAt` / higher `version` wins
+- Same-language answering (`askKnowledge(question, {lang})` — exact 1.0, fuzzy >= 0.35, else null)
+- Compact short-key storage (`i,q,a,l,c,u,v`), LRU oldest-first eviction (default 5000 pairs)
+- Thin `automationHintForQa` mapping onto the existing `AutomationEngine` (no new engine)
+- Boundary: main app owns ALL sync (only-`synced==false` upload, merged A-Z download, `synced` flags, schedule); SDK owns model via Firebase Remote Config `hf_model_url` (unchanged)
+
+See `../docs/SDK_TRAINING_GUIDE.md` and `../docs/MAIN_APP_SYNC_COMPANION.md`.
+
 ### 7. Task Orchestrator (`TaskOrchestrator`)
 
 **Responsibility:** Unified layer coordinating all components.

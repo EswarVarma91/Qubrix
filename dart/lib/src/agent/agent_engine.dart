@@ -21,6 +21,8 @@ import '../personalization/activity_event.dart';
 import '../personalization/personalization_engine.dart';
 import '../personalization/profile_manager.dart';
 import '../personalization/recommendation_engine.dart';
+import '../knowledge/knowledge_store.dart';
+import '../knowledge/knowledge_types.dart';
 
 /// Configuration for the [AdaptiveAgentEngine].
 class AgentEngineConfig {
@@ -64,6 +66,8 @@ enum AgentEventType {
   activityRecorded,
   recommendationGenerated,
   automationRegistered,
+  knowledgeIngested,
+  knowledgeCleared,
   securityEvent,
   error,
 }
@@ -106,6 +110,7 @@ class AdaptiveAgentEngine {
   PersonalizationEngine? _personalizationEngine;
   RecommendationEngine? _recommendationEngine;
   ProfileManager? _profileManager;
+  final KnowledgeStore _knowledgeStore = KnowledgeStore();
 
   bool _initialized = false;
   bool _disposed = false;
@@ -420,6 +425,91 @@ class AdaptiveAgentEngine {
     _personalizationEngine?.clearRecentActivity();
   }
 
+  /// Ingest a host-built training bundle (server merge or converted file).
+  ///
+  /// The host app owns sync: it uploads only `synced == false` Q&A, downloads
+  /// the merged A-Z bundle, and calls this. The SDK only learns locally.
+  /// Same-language answers: pairs carry `lang`; [askKnowledge] answers in the
+  /// query language. Automation reuses `AutomationEngine` via [QaPair.actionId].
+  Future<IngestResult> ingestKnowledge(QaTrainingBundle bundle) async {
+    _ensureUsable();
+    final result = _knowledgeStore.ingestBundle(bundle);
+    _emit(
+      AgentEventType.knowledgeIngested,
+      message: 'Knowledge ingested: +${result.added} ~${result.updated}',
+      data: {
+        'appId': bundle.appId,
+        'bundleVersion': bundle.bundleVersion,
+        'added': result.added,
+        'updated': result.updated,
+        'skipped': result.skipped,
+      },
+    );
+    return result;
+  }
+
+  /// Incremental upsert for server deltas (only-new-items sync).
+  Future<IngestResult> upsertQaPairs(List<QaPair> pairs) async {
+    _ensureUsable();
+    final result = _knowledgeStore.upsertPairs(pairs);
+    _emit(
+      AgentEventType.knowledgeIngested,
+      message: 'Knowledge upsert: +${result.added} ~${result.updated}',
+      data: {'added': result.added, 'updated': result.updated},
+    );
+    return result;
+  }
+
+  /// Remove pairs by id (host-driven deletes / corrections).
+  Future<int> removeQaPairs(List<String> ids) async {
+    _ensureUsable();
+    return _knowledgeStore.removeByIds(ids);
+  }
+
+  /// Answer directly from the local knowledge index in the query language.
+  ///
+  /// Pass [lang] when the host knows the UI locale (recommended); otherwise
+  /// the SDK auto-detects (te/hi/nl/fr/es/en heuristic) and matches only
+  /// within that language so Dutch users get Dutch answers, etc.
+  Future<KnowledgeAnswer?> askKnowledge(
+    String question, {
+    String? lang,
+  }) async {
+    _ensureUsable();
+    return _knowledgeStore.ask(question, lang: lang);
+  }
+
+  /// Thin knowledge -> automation hint. Returns the [QaPair.actionId]
+  /// mapping when present so hosts can run it through `runAutomation`.
+  KnowledgeAutomationHint? automationHintForQa(String qaId) {
+    final pair = _knowledgeStore.getById(qaId);
+    final actionId = pair?.actionId;
+    if (pair == null || actionId == null) return null;
+    if (_actionRegistry.getAction(actionId) == null) return null;
+    return KnowledgeAutomationHint(
+      qaId: pair.id,
+      actionId: actionId,
+      parameters: pair.actionParameters ?? const {},
+      confidence: 0.8,
+    );
+  }
+
+  /// Counts for dashboards / debugging.
+  KnowledgeStats knowledgeStats() => _knowledgeStore.stats();
+
+  /// Compact on-device form (short keys) for hosts that cache to disk.
+  List<Map<String, dynamic>> exportKnowledgeCompact() =>
+      _knowledgeStore.toCompactList();
+
+  /// Clear learned Q&A (user reset / logout).
+  Future<void> clearKnowledge() async {
+    _ensureUsable();
+    _knowledgeStore.clear();
+    _emit(AgentEventType.knowledgeCleared, message: 'Knowledge cleared');
+  }
+
+  KnowledgeStore get knowledgeStore => _knowledgeStore;
+
   /// Check the health of every enabled subsystem.
   Future<EngineHealth> checkHealth() async {
     final modelStatus = await _modelManager.checkHealth();
@@ -429,6 +519,7 @@ class AdaptiveAgentEngine {
       'models': modelStatus.isHealthy,
       if (personalizationStatus != null)
         'personalization': personalizationStatus.isHealthy,
+      'knowledge': true,
     };
 
     final healthy = components.values.every((value) => value);

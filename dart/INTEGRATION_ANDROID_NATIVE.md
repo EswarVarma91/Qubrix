@@ -283,6 +283,14 @@ The SDK includes comprehensive security features:
 
 ---
 
+## Training / Q&A (host-owned sync, SDK-owned learning)
+
+The model stays SDK-owned via Firebase Remote Config `hf_model_url` (see `firebase_config_setup.md` — no change). Q&A training is host-owned:
+
+- Host converts any file (JSON/XML/CSV/MD/DOC) to `QaTrainingBundle` and calls `engine.ingestKnowledge(bundle)` / `upsertQaPairs` / `removeQaPairs`; answers come from `engine.askKnowledge(question, lang: locale)` in the same language (en/hi/te/nl/fr/es).
+- Host owns all sync: upload only `synced==false` Q&A (no PII), mark `synced=true` after server ACK, download the merged A-Z bundle, apply it, sync on launch/daily.
+- Full contract: `../docs/SDK_TRAINING_GUIDE.md` (what to send) + `../docs/MAIN_APP_SYNC_COMPANION.md` (upload/download/`synced` flow). Firebase config for the model URL is separate and unchanged.
+
 ## Troubleshooting
 
 ### Firebase Not Configured

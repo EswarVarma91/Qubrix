@@ -26,6 +26,8 @@ The SDK consists of 6 core engines:
 
 Plus a comprehensive security layer.
 
+Plus host-taught Q&A knowledge: the main app syncs Q&A, the SDK learns and answers on-device in the user's language.
+
 ## Security
 
 The SDK includes a comprehensive security layer:
@@ -140,11 +142,18 @@ The example app demonstrates:
 - Model download with progress
 - Task execution
 
+## Training & Sync (host owns sync, SDK owns model + learning)
+
+- [SDK Training Guide](docs/SDK_TRAINING_GUIDE.md) - what material the SDK learns from (JSON/XML/CSV/MD/DOC via host conversion), canonical `QaPair`/`QaTrainingBundle` shapes, multilingual same-language answering, compact storage, Firebase pointer
+- [Main-App Sync Companion](docs/MAIN_APP_SYNC_COMPANION.md) - what the host app must send up (only `synced==false` Q&A, no PII), `synced` flag lifecycle, merged A-Z download, `ingestKnowledge` wiring, schedule
+- Responsibility split: model choice stays SDK-only via Firebase Remote Config `hf_model_url` (`SdkFirebaseOptions`, see `dart/firebase_config_setup.md`). Q&A sync is host-only; the SDK never calls the network for training.
+- SDK surface: `ingestKnowledge(bundle)`, `upsertQaPairs`, `removeQaPairs`, `askKnowledge(question, {lang})`, `knowledgeStats()`, `clearKnowledge()`, `automationHintForQa` (reuses existing `AutomationEngine`).
+
 ## Integration Guides
 
-- [Flutter Integration](INTEGRATION_FLUTTER.md) - Complete Flutter integration guide
-- [Android Native Integration](INTEGRATION_ANDROID_NATIVE.md) - Native Android integration guide
-- [iOS Native Integration](INTEGRATION_IOS_NATIVE.md) - Native iOS integration guide
+- [Flutter Integration](dart/INTEGRATION_FLUTTER.md) - Complete Flutter integration guide (includes Training/Q&A section)
+- [Android Native Integration](dart/INTEGRATION_ANDROID_NATIVE.md) - Native Android integration guide (includes Training/Q&A section)
+- [iOS Native Integration](dart/INTEGRATION_IOS_NATIVE.md) - Native iOS integration guide (includes Training/Q&A section)
 
 ## Project Structure
 

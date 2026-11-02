@@ -118,6 +118,10 @@ export 'src/personalization/personalization_engine.dart';
 export 'src/personalization/recommendation_engine.dart';
 export 'src/personalization/profile_manager.dart';
 
+// Knowledge training (host-owned sync, SDK-owned learning)
+export 'src/knowledge/knowledge_types.dart';
+export 'src/knowledge/knowledge_store.dart';
+
 // Automation
 export 'src/automation/action_registry.dart';
 export 'src/automation/permission_manager.dart';
