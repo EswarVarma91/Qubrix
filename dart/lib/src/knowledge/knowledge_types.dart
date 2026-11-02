@@ -90,32 +90,54 @@ class QaPair {
 
   factory QaPair.fromJson(Map<String, dynamic> json) {
     // Accept both full and compact keys so hosts can send either.
-    final id = (json['id'] ?? json['i']) as String;
-    final question = (json['question'] ?? json['q']) as String;
-    final answer = (json['answer'] ?? json['a']) as String;
-    final lang =
-        ((json['lang'] ?? json['l']) as String?)?.trim().toLowerCase();
+    final id = _text(json['id'] ?? json['i']);
+    final question = _text(json['question'] ?? json['q']);
+    final answer = _text(json['answer'] ?? json['a']);
+    if (id == null || question == null || answer == null) {
+      throw const FormatException('QaPair needs non-empty id, question, answer');
+    }
+
+    final lang = _text(json['lang'] ?? json['l'])?.toLowerCase();
+
     DateTime updatedAt;
     final rawUpdated = json['updatedAt'] ?? json['u'];
-    if (rawUpdated is int) {
-      updatedAt = DateTime.fromMillisecondsSinceEpoch(rawUpdated);
+    if (rawUpdated is num) {
+      updatedAt = DateTime.fromMillisecondsSinceEpoch(rawUpdated.toInt());
     } else {
-      updatedAt =
-          DateTime.tryParse(rawUpdated as String? ?? '') ?? DateTime.now();
+      updatedAt = DateTime.tryParse(rawUpdated?.toString() ?? '') ??
+          DateTime.now().toUtc();
     }
+
+    // Be tolerant of `1`, `1.0` and `"1"` from JSON/servers.
+    final rawVersion = json['version'] ?? json['v'];
+    final version = rawVersion is num
+        ? rawVersion.toInt()
+        : int.tryParse(rawVersion?.toString() ?? '') ?? 1;
+
+    final rawParams = json['actionParameters'] ?? json['ap'];
+    Map<String, dynamic>? actionParameters;
+    if (rawParams is Map) {
+      actionParameters = rawParams.map(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+    }
+
     return QaPair(
       id: id,
       question: question,
       answer: answer,
       lang: (lang == null || lang.isEmpty) ? 'en' : lang,
-      category: (json['category'] ?? json['c']) as String?,
+      category: _text(json['category'] ?? json['c']),
       updatedAt: updatedAt,
-      version: (json['version'] ?? json['v'] as int?) as int? ?? 1,
-      actionId:
-          (json['actionId'] ?? json['aid']) as String?,
-      actionParameters: ((json['actionParameters'] ?? json['ap'])
-          as Map?)?.cast<String, dynamic>(),
+      version: version,
+      actionId: _text(json['actionId'] ?? json['aid']),
+      actionParameters: actionParameters,
     );
+  }
+
+  static String? _text(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 }
 
@@ -167,25 +189,35 @@ class QaTrainingBundle {
       };
 
   factory QaTrainingBundle.fromJson(Map<String, dynamic> json) {
-    final rawPairs =
-        ((json['pairs'] ?? json['p']) as List? ?? const []);
+    final rawPairs = json['pairs'] ?? json['p'];
+    final pairs = <QaPair>[];
+    if (rawPairs is List) {
+      for (final entry in rawPairs) {
+        try {
+          if (entry is Map) {
+            pairs.add(QaPair.fromJson(entry.cast<String, dynamic>()));
+          }
+        } catch (_) {
+          // One malformed row must not block a whole sync/download.
+        }
+      }
+    }
+
     DateTime? syncedUpTo;
     final rawSu = json['syncedUpTo'] ?? json['su'];
-    if (rawSu is int) {
-      syncedUpTo = DateTime.fromMillisecondsSinceEpoch(rawSu);
-    } else if (rawSu is String) {
-      syncedUpTo = DateTime.tryParse(rawSu);
+    if (rawSu is num) {
+      syncedUpTo = DateTime.fromMillisecondsSinceEpoch(rawSu.toInt());
+    } else if (rawSu != null) {
+      syncedUpTo = DateTime.tryParse(rawSu.toString());
     }
+
     return QaTrainingBundle(
-      appId: (json['appId'] ?? json['app']) as String,
+      appId: QaPair._text(json['appId'] ?? json['app']) ?? 'host',
       bundleVersion:
-          ((json['bundleVersion'] ?? json['bv']) as String?) ?? '1',
-      pairs: rawPairs
-          .map((e) => QaPair.fromJson((e as Map).cast<String, dynamic>()))
-          .toList(),
+          QaPair._text(json['bundleVersion'] ?? json['bv']) ?? '1',
+      pairs: pairs,
       syncedUpTo: syncedUpTo,
-      source:
-          (json['source'] ?? json['s']) as String?,
+      source: QaPair._text(json['source'] ?? json['s']),
     );
   }
 }

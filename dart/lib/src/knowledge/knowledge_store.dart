@@ -188,8 +188,14 @@ class KnowledgeStore {
     String appId = 'host',
     String bundleVersion = 'restored',
   }) {
-    final pairs =
-        items.map((e) => QaPair.fromJson(e)).toList();
+    final pairs = <QaPair>[];
+    for (final item in items) {
+      try {
+        pairs.add(QaPair.fromJson(item));
+      } catch (_) {
+        // Skip a corrupt cached row instead of losing the whole cache.
+      }
+    }
     return ingestBundle(QaTrainingBundle(
       appId: appId,
       bundleVersion: bundleVersion,
@@ -325,36 +331,70 @@ class KnowledgeStore {
     return content.isEmpty ? tokens : content;
   }
 
+  /// Distinctive words per language used by [detectLanguage].
+  /// Ambiguous words (e.g. `comment`) may appear in more than one set; they
+  /// simply add a point to each, so a lone ambiguous word never decides.
+  static const Map<String, Set<String>> _langMarkers = {
+    'en': {
+      'how', 'what', 'where', 'when', 'which', 'can', 'could', 'should',
+      'book', 'booking', 'event', 'events', 'package', 'packages',
+      'merchandise', 'activity', 'activities', 'comment', 'thanks',
+      'please', 'my', 'i', 'do', 'does', 'the', 'is',
+    },
+    'nl': {
+      'hoe', 'boek', 'boeken', 'geboekt', 'evenement', 'evenementen',
+      'pakket', 'pakketten', 'activiteit', 'activiteiten', 'bedankt',
+      'alstublieft', 'reserveren', 'gereserveerd', 'niet', 'mijn',
+      'wil', 'kan', 'wat', 'waar',
+    },
+    'fr': {
+      'comment', 'réserver', 'reserver', 'réservation', 'événement',
+      'événements', 'evenement', 'forfait', 'forfaits', 'activité',
+      'activités', 'merci', 'puis', 'veux', 'mon', 'ma', 'quel', 'quelle',
+      'où', 'est',
+    },
+    'es': {
+      'cómo', 'como', 'reservar', 'reserva', 'evento', 'eventos', 'paquete',
+      'paquetes', 'actividad', 'actividades', 'gracias', 'mercancía',
+      'mercancia', 'quiero', 'puedo', 'mi', 'dónde', 'donde', 'qué',
+    },
+    'hi': {
+      'kaise', 'kya', 'karo', 'karein', 'dhanyavad', 'kripya', 'gatividhi',
+      'chahiye', 'kaun', 'kahan', 'banaye', 'dekhe', 'milega',
+    },
+  };
+
   /// Tiny offline language guess. Hosts should pass an explicit `lang`
   /// whenever they know the UI locale; this is only the fallback.
-  /// Supports en/hi/te/nl/fr/es well enough for index partitioning —
-  /// full NLU stays in the SDK model.
+  ///
+  /// Script detection is exact for Telugu/Hindi. Latin-script text is scored
+  /// by distinctive words per language, so an English "How do I book an
+  /// event?" is not mistaken for Hindi just because it contains `book`.
   static String detectLanguage(String text) {
-    final t = text.toLowerCase();
     if (RegExp(r'[\u0c00-\u0c7f]').hasMatch(text)) return 'te';
     if (RegExp(r'[\u0900-\u097f]').hasMatch(text)) return 'hi';
-    if (RegExp(
-            r'\b(hoe|boek|evenement|pakket|activiteit|bedankt|alstublieft)\b')
-        .hasMatch(t)) {
-      return 'nl';
+
+    final words = _tokens(text.toLowerCase());
+    if (words.isEmpty) return 'en';
+
+    var bestLang = 'en';
+    var bestScore = words.intersection(_langMarkers['en']!).length;
+    for (final entry in _langMarkers.entries) {
+      if (entry.key == 'en') continue;
+      final score = words.intersection(entry.value).length;
+      if (score > bestScore) {
+        bestScore = score;
+        bestLang = entry.key;
+      } else if (score == bestScore &&
+          score >= 2 &&
+          bestLang == 'en') {
+        // Two distinctive hits in one non-English language beat shared
+        // English-looking words (e.g. romanized Hindi "package kaise book
+        // karein"). English stays the default on a single-word tie.
+        bestLang = entry.key;
+      }
     }
-    if (RegExp(
-            r'\b(comment|r[ée]server|év[ée]nement|forfait|activit[ée]|merci)\b')
-        .hasMatch(t)) {
-      return 'fr';
-    }
-    if (RegExp(
-            r'\b(c[óo]mo|reservar|evento|paquete|actividad|gracias|mercanc[íi]a)\b')
-        .hasMatch(t)) {
-      return 'es';
-    }
-    if (RegExp(
-            r'\b(kaise|kaise|book|karo|dhanyavad|kripya|gatividhi)\b')
-        .hasMatch(t)) {
-      // Romanized Hindi shares words with English; prefer explicit lang.
-      return 'hi';
-    }
-    return 'en';
+    return bestLang;
   }
 }
 
