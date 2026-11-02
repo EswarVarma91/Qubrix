@@ -1139,10 +1139,14 @@ void main() {
     late AdaptiveAgentEngine engine;
     var searchCalls = 0;
     var cartCalls = 0;
+    Map<String, dynamic> lastSearchParams = const {};
+    Map<String, dynamic> lastCartParams = const {};
 
     setUp(() async {
       searchCalls = 0;
       cartCalls = 0;
+      lastSearchParams = const {};
+      lastCartParams = const {};
 
       engine = AdaptiveAgentEngine(
         config: const AgentEngineConfig(
@@ -1163,6 +1167,7 @@ void main() {
         ),
         (params) {
           searchCalls++;
+          lastSearchParams = params;
           return {'results': 3};
         },
       );
@@ -1175,6 +1180,7 @@ void main() {
         ),
         (params) {
           cartCalls++;
+          lastCartParams = params;
           return {'added': true};
         },
       );
@@ -1188,10 +1194,18 @@ void main() {
         level: PermissionLevel.execute,
       );
 
-      // The user repeats the same two actions six times.
+      // The user repeats the same two actions, with the same values, six times.
       for (var i = 0; i < 6; i++) {
-        await engine.trackAction('search_product', name: 'Search products');
-        await engine.trackAction('add_to_cart', name: 'Add to cart');
+        await engine.trackAction(
+          'search_product',
+          name: 'Search products',
+          parameters: {'query': 'nitrile gloves'},
+        );
+        await engine.trackAction(
+          'add_to_cart',
+          name: 'Add to cart',
+          parameters: {'sku': 'NG-100', 'quantity': 2},
+        );
       }
     });
 
@@ -1218,24 +1232,33 @@ void main() {
       expect(routines, isNotEmpty);
 
       final sequence = routines.firstWhere(
-        (r) =>
-            r.steps.length == 2 &&
-            r.steps.first.actionId == 'search_product' &&
-            r.steps.last.actionId == 'add_to_cart',
+        (r) => r.routineId == 'seq_search_product_add_to_cart',
         orElse: () => throw StateError('routine was not detected'),
       );
+      expect(sequence.steps, hasLength(2));
 
       expect(sequence.frequency, greaterThanOrEqualTo(3));
       expect(sequence.confidence, greaterThanOrEqualTo(0.7));
+
+      // The values the user chose are learned with the steps.
+      expect(
+        sequence.steps.first.typicalParameters,
+        {'query': 'nitrile gloves'},
+      );
+      expect(
+        sequence.steps.last.typicalParameters,
+        {'sku': 'NG-100', 'quantity': 2},
+      );
     });
 
     test('turns the routine into an automation and runs it', () async {
       final candidates = await engine.getAutomationCandidates();
       expect(candidates, isNotEmpty);
 
-      final routine = candidates.firstWhere(
-        (r) => r.steps.length == 2,
-        orElse: () => candidates.first,
+      final routines = await engine.getDetectedRoutines(limit: 20);
+      final routine = routines.firstWhere(
+        (r) => r.routineId == 'seq_search_product_add_to_cart',
+        orElse: () => throw StateError('sequence routine was not detected'),
       );
 
       final workflow = await engine.registerRoutineAutomation(
@@ -1253,6 +1276,11 @@ void main() {
       expect(result.success, isTrue);
       expect(searchCalls, 1);
       expect(cartCalls, 1);
+
+      // The learned parameters reach the action handlers.
+      expect(lastSearchParams['query'], 'nitrile gloves');
+      expect(lastCartParams['sku'], 'NG-100');
+      expect(lastCartParams['quantity'], 2);
 
       final profile = await engine.getUserProfile();
       final stored = profile!.routines
@@ -1279,6 +1307,37 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    test('does not learn parameters that vary between uses', () async {
+      final unstable = AdaptiveAgentEngine(
+        config: const AgentEngineConfig(
+          enableModelManagement: false,
+          enablePersonalization: true,
+          enableRecommendations: false,
+        ),
+      );
+      await unstable.initialize();
+
+      for (var i = 0; i < 6; i++) {
+        await unstable.trackAction(
+          'export_report',
+          name: 'Export report',
+          parameters: {'format': i.isEven ? 'pdf' : 'csv'},
+        );
+      }
+
+      final routines = await unstable.getDetectedRoutines();
+      final usage = routines.firstWhere(
+        (r) => r.routineId == 'usage_export_report',
+        orElse: () => throw StateError('usage routine was not detected'),
+      );
+
+      // Three pdf and three csv runs: no value dominates, so nothing is
+      // replayed as if it were the user's fixed choice.
+      expect(usage.steps.single.typicalParameters, isNull);
+
+      await unstable.dispose();
     });
   });
 

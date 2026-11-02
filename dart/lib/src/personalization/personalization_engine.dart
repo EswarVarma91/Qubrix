@@ -22,6 +22,12 @@ class PersonalizationEngine {
   int _eventsSincePatternUpdate = 0;
   static const int _patternUpdateEventThreshold = 5;
 
+  /// A parameter key must appear in at least this share of observations.
+  static const double _parameterPresenceThreshold = 0.6;
+
+  /// One value must dominate this share of those observations.
+  static const double _parameterStabilityThreshold = 0.6;
+
   PersonalizationEngine({
     required this.profileManager,
     this.privacyMode = PrivacyMode.localFirst,
@@ -230,8 +236,19 @@ class PersonalizationEngine {
     final keepStatus = existing.status == RoutineStatus.automated ||
         existing.status == RoutineStatus.dismissed;
 
+    // Prefer freshly learned steps, but never replace steps that carry learned
+    // parameters with ones that have none.
+    final existingHasParameters = existing.steps
+        .any((step) => step.typicalParameters?.isNotEmpty ?? false);
+    final detectedHasParameters = steps
+            ?.any((step) => step.typicalParameters?.isNotEmpty ?? false) ??
+        false;
+    final useDetected = steps != null &&
+        steps.isNotEmpty &&
+        (!existingHasParameters || detectedHasParameters);
+
     routines[key] = existing.copyWith(
-      steps: existing.steps.isNotEmpty ? existing.steps : steps,
+      steps: useDetected ? steps : existing.steps,
       frequency:
           observed > existing.frequency ? observed : existing.frequency,
       confidence:
@@ -251,29 +268,28 @@ class PersonalizationEngine {
   List<Map<String, dynamic>> _detectSequentialPatterns(ProfileConfig config) {
     final patterns = <Map<String, dynamic>>[];
 
-    final actionSequence = _recentActivity
-        .where(_isRoutineEvent)
-        .map(_actionIdOf)
-        .toList();
-
-    if (actionSequence.length < 2) return patterns;
+    final routineEvents = _recentActivity.where(_isRoutineEvent).toList();
+    if (routineEvents.length < 2) return patterns;
 
     final acceptedKeys = <String>[];
 
     // Longest sequences first so a shorter fragment of the same routine is not
     // reported as a second routine.
     for (var seqLength = 3; seqLength >= 2; seqLength--) {
-      if (seqLength > actionSequence.length) continue;
+      if (seqLength > routineEvents.length) continue;
 
-      final sequenceCounts = <String, int>{};
-      for (var i = 0; i <= actionSequence.length - seqLength; i++) {
-        final sequence = actionSequence.sublist(i, i + seqLength);
-        final key = sequence.join(' -> ');
-        sequenceCounts[key] = (sequenceCounts[key] ?? 0) + 1;
+      // Keep the events of every occurrence so the values the user supplied
+      // can be learned alongside the action sequence.
+      final occurrences = <String, List<List<ActivityEvent>>>{};
+      for (var i = 0; i <= routineEvents.length - seqLength; i++) {
+        final window = routineEvents.sublist(i, i + seqLength);
+        final key = window.map(_actionIdOf).join(' -> ');
+        occurrences.putIfAbsent(key, () => []).add(window);
       }
 
-      for (final entry in sequenceCounts.entries) {
-        if (entry.value < config.minRoutineFrequency) continue;
+      for (final entry in occurrences.entries) {
+        final count = entry.value.length;
+        if (count < config.minRoutineFrequency) continue;
 
         final actions = entry.key.split(' -> ');
 
@@ -283,7 +299,7 @@ class PersonalizationEngine {
         // Skip fragments of a longer routine that was already accepted.
         if (acceptedKeys.any((key) => key.contains(entry.key))) continue;
 
-        final confidence = entry.value / (entry.value + 1);
+        final confidence = count / (count + 1);
         if (confidence < config.minPatternConfidence) continue;
 
         acceptedKeys.add(entry.key);
@@ -291,21 +307,81 @@ class PersonalizationEngine {
           'key': 'seq_${actions.map(_slug).join('_')}',
           'name': 'Repeated sequence: ${actions.join(' → ')}',
           'description': 'This sequence of ${actions.length} actions was '
-              'performed ${entry.value} times and can be automated.',
+              'performed $count times and can be automated.',
           'steps': actions.asMap().entries.map((e) {
             return RoutineStep(
               actionId: e.value,
               name: e.value,
               order: e.key,
+              typicalParameters: _learnParameters(
+                entry.value
+                    .map((occurrence) => occurrence[e.key].parameters)
+                    .toList(),
+              ),
             );
           }).toList(),
-          'frequency': entry.value,
+          'frequency': count,
           'confidence': confidence,
         });
       }
     }
 
     return patterns;
+  }
+
+  /// Learn the stable arguments of a step from every observation of it.
+  ///
+  /// A value is only learned when its key appears in most observations and one
+  /// value dominates them, so an input that really varies (a search term typed
+  /// differently each time) is not replayed as if it were fixed.
+  Map<String, dynamic>? _learnParameters(
+    List<Map<String, dynamic>> observations,
+  ) {
+    if (observations.length < 2) return null;
+
+    final presence = <String, int>{};
+    final valueCounts = <String, Map<String, int>>{};
+    final valueExamples = <String, dynamic>{};
+
+    for (final observation in observations) {
+      for (final parameter in observation.entries) {
+        if (parameter.value == null) continue;
+
+        presence[parameter.key] = (presence[parameter.key] ?? 0) + 1;
+
+        final encoded = '${parameter.value.runtimeType}:${parameter.value}';
+        final counts = valueCounts.putIfAbsent(parameter.key, () => <String, int>{});
+        counts[encoded] = (counts[encoded] ?? 0) + 1;
+        valueExamples[encoded] = parameter.value;
+      }
+    }
+
+    final learned = <String, dynamic>{};
+
+    for (final entry in valueCounts.entries) {
+      final present = presence[entry.key] ?? 0;
+      if (present / observations.length < _parameterPresenceThreshold) continue;
+
+      final dominant = entry.value.entries
+          .reduce((a, b) => b.value > a.value ? b : a);
+      if (dominant.value / present < _parameterStabilityThreshold) continue;
+
+      learned[entry.key] = valueExamples[dominant.key];
+    }
+
+    return learned.isEmpty ? null : Map.unmodifiable(learned);
+  }
+
+  /// Values supplied per action across the recent activity window.
+  Map<String, List<Map<String, dynamic>>> _parametersByAction() {
+    final byAction = <String, List<Map<String, dynamic>>>{};
+
+    for (final event in _recentActivity.where(_isRoutineEvent)) {
+      if (event.parameters.isEmpty) continue;
+      byAction.putIfAbsent(_actionIdOf(event), () => []).add(event.parameters);
+    }
+
+    return byAction;
   }
 
   /// Whether an event participates in routine detection.
@@ -332,6 +408,8 @@ class PersonalizationEngine {
     final patterns = <Map<String, dynamic>>[];
 
     if (_recentActivity.length < 5) return patterns;
+
+    final parametersByAction = _parametersByAction();
 
     // Group activities by time of day
     final timeBuckets = <String, List<ActivityEvent>>{};
@@ -370,6 +448,8 @@ class PersonalizationEngine {
                 actionId: f.key,
                 name: f.key,
                 order: 0,
+                typicalParameters:
+                    _learnParameters(parametersByAction[f.key] ?? []),
               );
             }).toList(),
             'frequency': entry.value.length,
@@ -426,6 +506,7 @@ class PersonalizationEngine {
   /// Detect single actions the user repeats a lot.
   List<Map<String, dynamic>> _detectUsagePatterns(UserProfile profile) {
     final patterns = <Map<String, dynamic>>[];
+    final parametersByAction = _parametersByAction();
 
     for (final feature in profile.getMostUsedFeatures(limit: 5)) {
       if (feature.count < 5) continue;
@@ -440,6 +521,8 @@ class PersonalizationEngine {
             actionId: feature.featureId,
             name: feature.featureName,
             order: 0,
+            typicalParameters:
+                _learnParameters(parametersByAction[feature.featureId] ?? []),
           )
         ],
         'frequency': feature.count,

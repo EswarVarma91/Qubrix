@@ -201,16 +201,22 @@ class AdaptiveAgentEngine {
   }
 
   /// Report a repeated app action (a feature tap, a command, ...).
+  ///
+  /// Pass the values the user chose in [parameters] (product, quantity,
+  /// recipient, ...): they are learned per step and replayed when the routine
+  /// is automated.
   Future<void> trackAction(
     String actionId, {
     String? name,
     int durationMs = 0,
+    Map<String, dynamic> parameters = const {},
     Map<String, dynamic>? context,
   }) {
     return recordActivity(ActivityEvent(
       eventType: ActivityEventType.featureUsage,
       actionId: actionId,
       durationMs: durationMs,
+      parameters: parameters,
       context: {
         'featureName': name ?? actionId,
         ...?context,
@@ -456,7 +462,7 @@ class AdaptiveAgentEngine {
       return WorkflowStep(
         id: '${workflowId}_step_${entry.key}',
         actionId: step.actionId,
-        name: step.name,
+        name: _actionRegistry.getAction(step.actionId)?.name ?? step.name,
         parameters: step.typicalParameters,
         dependsOn: entry.key == 0
             ? const []
@@ -487,11 +493,28 @@ class AdaptiveAgentEngine {
     Recommendation recommendation,
   ) async {
     final parameters = recommendation.actionParameters;
-    final actionIds =
-        (parameters?['actionIds'] as List<dynamic>?)
-            ?.map((id) => id.toString())
-            .toList() ??
-        [if (recommendation.actionId != null) recommendation.actionId!];
+    final routineId = parameters?['routineId'];
+
+    final profile = await _profileManager?.getUserProfile();
+    DetectedRoutine? routine;
+    if (routineId is String && profile != null) {
+      final index =
+          profile.routines.indexWhere((r) => r.routineId == routineId);
+      if (index >= 0) routine = profile.routines[index];
+    }
+
+    // Learned values travel with the routine into the automation.
+    final stepParameters = <String, Map<String, dynamic>?>{
+      for (final step in routine?.steps ?? const <RoutineStep>[])
+        step.actionId: step.typicalParameters,
+    };
+
+    final actionIds = routine != null && routine.steps.isNotEmpty
+        ? routine.steps.map((step) => step.actionId).toList()
+        : (parameters?['actionIds'] as List<dynamic>?)
+                ?.map((id) => id.toString())
+                .toList() ??
+            [if (recommendation.actionId != null) recommendation.actionId!];
     if (actionIds.isEmpty) return;
 
     final workflowId = 'rec_${_slug(recommendation.id)}';
@@ -503,6 +526,7 @@ class AdaptiveAgentEngine {
         id: '${workflowId}_step_${entry.key}',
         actionId: actionId,
         name: _actionRegistry.getAction(actionId)?.name ?? actionId,
+        parameters: stepParameters[actionId],
         dependsOn: entry.key == 0
             ? const []
             : ['${workflowId}_step_${entry.key - 1}'],
@@ -523,16 +547,10 @@ class AdaptiveAgentEngine {
       },
     ));
 
-    final routineId = parameters?['routineId'];
-    if (routineId is String) {
-      final profile = await _profileManager?.getUserProfile();
-      final index =
-          profile?.routines.indexWhere((r) => r.routineId == routineId) ?? -1;
-      if (profile != null && index >= 0) {
-        await _profileManager?.upsertRoutine(
-          profile.routines[index].copyWith(status: RoutineStatus.automated),
-        );
-      }
+    if (routine != null) {
+      await _profileManager?.upsertRoutine(
+        routine.copyWith(status: RoutineStatus.automated),
+      );
     }
 
     _emit(

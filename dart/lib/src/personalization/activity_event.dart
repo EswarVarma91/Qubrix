@@ -99,6 +99,12 @@ class ActivityEvent {
   /// Contextual data about the event
   final Map<String, dynamic> context;
 
+  /// Arguments the user supplied for this action (search term, quantity, ...).
+  ///
+  /// Unlike [context], these are the action's inputs: the learner generalises
+  /// them per step and replays them when the action is automated.
+  final Map<String, dynamic> parameters;
+
   /// Additional metadata
   final Map<String, dynamic> metadata;
 
@@ -118,6 +124,7 @@ class ActivityEvent {
     this.durationMs = 0,
     DateTime? timestamp,
     this.context = const {},
+    this.parameters = const {},
     this.metadata = const {},
     this.priority = ActivityPriority.normal,
     this.privacyLevel = PrivacyLevel.local,
@@ -164,11 +171,13 @@ class ActivityEvent {
   factory ActivityEvent.featureUsed({
     required String featureName,
     required String featureId,
+    Map<String, dynamic>? parameters,
     Map<String, dynamic>? context,
   }) {
     return ActivityEvent(
       eventType: ActivityEventType.featureUsage,
       actionId: featureId,
+      parameters: parameters ?? const {},
       context: {
         'featureName': featureName,
         ...?context,
@@ -237,6 +246,7 @@ class ActivityEvent {
     int? durationMs,
     DateTime? timestamp,
     Map<String, dynamic>? context,
+    Map<String, dynamic>? parameters,
     Map<String, dynamic>? metadata,
     ActivityPriority? priority,
     PrivacyLevel? privacyLevel,
@@ -251,6 +261,7 @@ class ActivityEvent {
       durationMs: durationMs ?? this.durationMs,
       timestamp: timestamp ?? this.timestamp,
       context: context ?? this.context,
+      parameters: parameters ?? this.parameters,
       metadata: metadata ?? this.metadata,
       priority: priority ?? this.priority,
       privacyLevel: privacyLevel ?? this.privacyLevel,
@@ -306,6 +317,7 @@ class ActivityEvent {
         'durationMs': durationMs,
         'timestamp': timestamp.toIso8601String(),
         'context': context,
+        'parameters': parameters,
         'metadata': metadata,
         'priority': priority.name,
         'privacyLevel': privacyLevel.name,
@@ -330,6 +342,7 @@ class ActivityEvent {
       durationMs: json['durationMs'] as int? ?? 0,
       timestamp: DateTime.parse(json['timestamp'] as String),
       context: (json['context'] as Map<String, dynamic>?) ?? {},
+      parameters: (json['parameters'] as Map<String, dynamic>?) ?? {},
       metadata: (json['metadata'] as Map<String, dynamic>?) ?? {},
       priority: ActivityPriority.values.firstWhere(
         (e) => e.name == json['priority'],
