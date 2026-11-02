@@ -48,7 +48,10 @@ class SdkFirebaseOptions {
 
   // MARK: - Android Configuration
   /// Android API Key
-  static const String androidApiKey = 'AIzaSyDiSCdt6Bkxk5jSxqA-RqT0-OGLo3HZZks';
+  ///
+  /// Replace with your own Firebase project's API key.
+  /// See https://console.firebase.google.com
+  static const String androidApiKey = 'YOUR_FIREBASE_ANDROID_API_KEY';
 
   /// Android App ID
   static const String androidAppId =
@@ -59,7 +62,10 @@ class SdkFirebaseOptions {
 
   // MARK: - iOS Configuration
   /// iOS API Key
-  static const String iosApiKey = 'AIzaSyA8SOJbuerav02_1P0ReJDP1CvbtjCUpoA';
+  ///
+  /// Replace with your own Firebase project's API key.
+  /// See https://console.firebase.google.com
+  static const String iosApiKey = 'YOUR_FIREBASE_IOS_API_KEY';
 
   /// iOS App ID
   static const String iosAppId = '1:532964963634:ios:2143973eaf264a7c9dd32b';

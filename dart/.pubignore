@@ -1,0 +1,22 @@
+# Firebase config files (contain API keys - users should create their own)
+example/android/app/google-services.json
+example/ios/Runner/GoogleService-Info.plist
+
+# Generated plugin files (auto-generated, not needed in package)
+example/ios/Runner/GeneratedPluginRegistrant.h
+example/ios/Runner/GeneratedPluginRegistrant.m
+
+# Build output
+build/
+.dart_tool/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+
+# Git files
+.git/
+.gitignore
