@@ -1281,4 +1281,62 @@ void main() {
       );
     });
   });
+
+  group('Profile retention', () {
+    late ProfileManager profileManager;
+
+    setUp(() {
+      profileManager = ProfileManager();
+    });
+
+    DetectedRoutine sampleRoutine() => DetectedRoutine(
+          routineId: 'seq_search_add',
+          name: 'Search then add to cart',
+          description: 'Repeated two-step sequence',
+          steps: const [
+            RoutineStep(actionId: 'search_product', name: 'Search', order: 0),
+            RoutineStep(actionId: 'add_to_cart', name: 'Add to cart', order: 1),
+          ],
+          frequency: 6,
+          confidence: 0.86,
+          detectedAt: DateTime.now(),
+        );
+
+    test('reads never replace the profile or lose learned data', () async {
+      await profileManager.updateUsageStats(
+        const FeatureUsageStats(totalEvents: 12, totalFeaturesUsed: 2),
+      );
+      await profileManager.updateRoutines([sampleRoutine()]);
+      await profileManager.updatePreferences({'theme': 'dark'});
+
+      final stable = await profileManager.getUserProfile();
+
+      // Every later read must hand back the same profile, however long the
+      // user leaves the app idle.
+      for (var i = 0; i < 5; i++) {
+        final again = await profileManager.getUserProfile();
+
+        expect(identical(again, stable), isTrue);
+        expect(again.profileId, stable.profileId);
+        expect(again.usageStats.totalEvents, 12);
+        expect(again.routines.single.routineId, 'seq_search_add');
+        expect(again.preferences.containsKey('theme'), isTrue);
+      }
+    });
+
+    test('clearAllData is the only thing that resets learning', () async {
+      final before = await profileManager.getUserProfile();
+      await profileManager.updateUsageStats(
+        const FeatureUsageStats(totalEvents: 3),
+      );
+      await profileManager.updateRoutines([sampleRoutine()]);
+
+      await profileManager.clearAllData();
+
+      final after = await profileManager.getUserProfile();
+      expect(after.profileId, isNot(before.profileId));
+      expect(after.usageStats.totalEvents, 0);
+      expect(after.routines, isEmpty);
+    });
+  });
 }

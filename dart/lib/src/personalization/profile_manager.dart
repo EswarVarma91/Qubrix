@@ -896,36 +896,40 @@ class ProfileManager {
   ProfileConfig _config;
 
   UserProfile? _cachedProfile;
-  DateTime? _lastLoadTime;
+  int _profileSequence = 0;
 
   ProfileManager({ProfileConfig? config})
       : _config = config ?? const ProfileConfig();
 
-  /// Get the current user profile
+  /// Build a unique profile id.
+  ///
+  /// Milliseconds alone collide when a profile is reset shortly after it was
+  /// created, which made a cleared profile look like the previous one.
+  String _newProfileId() =>
+      'user_${DateTime.now().millisecondsSinceEpoch}_${_profileSequence++}';
+
+  /// Get the current user profile.
+  ///
+  /// The profile is created once and kept for the lifetime of this manager.
+  /// There is no storage backend to reload from yet, so expiring the in-memory
+  /// copy on a timer only threw away everything personalization had learned
+  /// (usage stats, routines, preferences) and handed out a new [profileId].
+  /// Only [clearAllData] replaces the profile.
   Future<UserProfile> getUserProfile() async {
-    // In a real implementation, this would load from local storage
-    // For now, return a default profile
+    final profile = _cachedProfile;
+    if (profile != null) return profile;
 
-    if (_cachedProfile != null &&
-        _lastLoadTime != null &&
-        DateTime.now().difference(_lastLoadTime!) < const Duration(minutes: 5)) {
-      return _cachedProfile!;
-    }
-
-    // Load or create profile
-    _cachedProfile = await _loadOrCreateProfile();
-    _lastLoadTime = DateTime.now();
-
-    return _cachedProfile!;
+    final created = await _loadOrCreateProfile();
+    _cachedProfile = created;
+    return created;
   }
 
-  /// Load or create the user profile
+  /// Create the initial user profile.
+  ///
+  /// A real implementation would restore this from local storage instead.
   Future<UserProfile> _loadOrCreateProfile() async {
-    // In a real implementation, this would use local storage
-    // Return a new profile for demonstration
-
     return UserProfile(
-      profileId: 'user_${DateTime.now().millisecondsSinceEpoch}',
+      profileId: _newProfileId(),
       createdAt: DateTime.now(),
       lastUpdated: DateTime.now(),
       config: _config,
@@ -1018,16 +1022,12 @@ class ProfileManager {
     await updateRoutines(routines);
   }
 
-  /// Clear all personalization data
+  /// Clear all personalization data.
+  ///
+  /// This is the only operation that discards learned state; a real
+  /// implementation would also delete the stored copy.
   Future<void> clearAllData() async {
-    // In a real implementation, this would delete stored data
-    _cachedProfile = UserProfile(
-      profileId: 'user_${DateTime.now().millisecondsSinceEpoch}',
-      createdAt: DateTime.now(),
-      lastUpdated: DateTime.now(),
-      config: _config,
-    );
-    _lastLoadTime = DateTime.now();
+    _cachedProfile = await _loadOrCreateProfile();
   }
 
   /// Check if personalization is enabled
