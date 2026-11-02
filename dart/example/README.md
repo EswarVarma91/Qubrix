@@ -2,14 +2,28 @@
 
 A complete Flutter sample application demonstrating Qubrix integration.
 
-## Features
+Qubrix is an adaptive AI agent SDK for mobile apps that combines on-device model management, behavioral learning, and developer-defined action automation.
+
+## What the Example Demonstrates
+
+The example app shows how to integrate Qubrix into a Flutter application and use its core capabilities:
+
+### Core SDK Features
+
+- **Model Management**: Download AI models from HuggingFace via Firebase Remote Config
+- **Task Execution**: Run classification, extraction, generation, summarization, and completion tasks
+- **Personalization**: Record user activity and let the SDK learn routines
+- **Recommendations**: Get context-aware suggestions based on learned patterns
+- **Automation**: Execute multi-step workflows at three levels (Suggest/Prepare/Execute)
+- **Knowledge Q&A**: Ingest knowledge bundles and answer user questions on-device
+- **Security**: Tamper detection, integrity verification, secure storage, and permission guards
+
+### App Architecture
 
 - **GetX State Management**: Reactive UI with GetX controllers
 - **get_it Dependency Injection**: Clean architecture with dependency injection
 - **Responsive UI**: Adaptive layout for mobile and tablet
 - **Reusable Widgets**: AdaptiveButton, StatusCard, ActionGrid, ModelProgressIndicator
-- **Firebase Remote Config**: Background model configuration (no user selection)
-- **Security Features**: Tamper detection, integrity verification, secure storage
 
 ## Project Structure
 

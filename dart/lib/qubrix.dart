@@ -25,37 +25,64 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/// Adaptive AI Agent SDK
+/// Qubrix — Adaptive AI Agent SDK for Flutter
 ///
-/// An adaptive, personalized AI automation platform for mobile applications.
+/// An embeddable SDK that brings adaptive AI automation to mobile apps.
+/// It combines on-device model management, behavioral learning, and
+/// developer-defined action automation into a single package.
+///
+/// ## Core Capabilities
+///
+/// - **Model Management:** Download, verify, load, and unload AI models from
+///   HuggingFace. The SDK automatically selects the smallest model capable of
+///   completing a task, managed via Firebase Remote Config.
+/// - **Adaptive Model Selection:** Models are chosen based on task type, device
+///   capabilities, and quality requirements — users never select models manually.
+/// - **Personalization Engine (3-layer):**
+///   - Layer 1: Activity Memory — permitted, structured facts about recent interactions
+///   - Layer 2: Routine & Preference Engine — pattern detection (sequential, temporal, usage)
+///   - Layer 3: AI Interpretation — converts patterns into natural-language suggestions
+/// - **Recommendation Engine:** Context-aware suggestions based on learned routines
+///   and current context (time of day, feature usage, etc.)
+/// - **Automation Engine (3 levels):**
+///   - Level 1 (Suggest): Recommends an action
+///   - Level 2 (Prepare): Prepares the action for review
+///   - Level 3 (Execute): Performs an authorized action
+/// - **Knowledge Training:** On-device Q&A learning from host-supplied knowledge
+///   bundles. Multilingual answering (en, hi, te, nl, fr, es, etc.). Compact storage
+///   with LRU eviction. Host owns sync; SDK owns learning.
+/// - **Security Layer:** Integrity verification, tamper detection (rooted/jailbroken/
+///   debuggers), per-customer AES-256-GCM encryption (HKDF-derived keys), permission
+///   guards, secure storage, audit logging, and emergency breach response.
 ///
 /// ## Architecture Overview
 ///
-/// The SDK consists of 6 core engines:
-/// - [AdaptiveAgentEngine] - Main orchestrator that coordinates all engines
-/// - [ModelManager] - Handles model downloading, verification, loading
-/// - [CompatibilityEngine] - Checks device compatibility for models
-/// - [ModelOptimizer] - Optimizes model usage for device constraints
-/// - [PersonalizationEngine] - Personalizes based on user behavior (3-layer)
-/// - [RecommendationEngine] - Provides personalized recommendations
-/// - [AutomationEngine] - Executes automated tasks (3 levels: Suggest/Prepare/Execute)
+/// The SDK consists of 7 core components:
+/// - [AdaptiveAgentEngine] — Main orchestrator coordinating all subsystems
+/// - [ModelManager] — Downloads, verifies, loads, unloads models
+/// - [CompatibilityEngine] — Checks device compatibility for models
+/// - [ModelOptimizer] — Finds smallest suitable model for tasks
+/// - [PersonalizationEngine] — Learns routines and preferences from activity
+/// - [RecommendationEngine] — Generates personalized suggestions
+/// - [AutomationEngine] — Executes approved workflows (Suggest/Prepare/Execute)
+/// - [KnowledgeStore] — On-device Q&A index for host-supplied knowledge
 ///
 /// ## Security Architecture
 ///
 /// The SDK includes a comprehensive security layer:
-/// - [SecurityConfig] - Security configuration settings
-/// - [IntegrityVerifier] - Verifies SDK integrity
-/// - [PermissionGuard] - Permission check for sensitive operations
-/// - [TamperDetector] - Detects tampering attempts
-/// - [DataProtector] - Data protection utilities
-/// - [CustomerDataProtector] - Per-customer data isolation and encryption
-/// - [DataIsolation] - Customer data isolation between customers
-/// - [EmergencyBreachResponse] - Emergency response for security breaches
-/// - [SecureStorageManager] - Secure storage for sensitive data
-/// - [AuditLogger] - Audit logging for security events
-/// - [ModelTamperProtection] - Model-specific tamper protection
-/// - [SecureDeleteManager] - Secure deletion of sensitive data
-/// - [ModelIntegrityChecker] - Model integrity verification
+/// - [SecurityConfig] — Security configuration settings
+/// - [IntegrityVerifier] — Verifies SDK integrity at runtime
+/// - [PermissionGuard] — Permission checks for sensitive operations
+/// - [TamperDetector] — Detects tampering, rooted/jailbroken devices, debuggers
+/// - [DataProtector] — Data protection utilities
+/// - [CustomerDataProtector] — Per-customer data isolation and encryption
+/// - [DataIsolation] — Customer data isolation between customers
+/// - [EmergencyBreachResponse] — Automatic lockout and secure data deletion
+/// - [SecureStorageManager] — Secure storage for sensitive data
+/// - [AuditLogger] — Audit logging for security events
+/// - [ModelTamperProtection] — Model-specific tamper protection
+/// - [SecureDeleteManager] — Secure deletion of sensitive data
+/// - [ModelIntegrityChecker] — Model integrity verification
 ///
 /// ## Firebase Integration
 ///
@@ -65,30 +92,31 @@
 /// configuration or not.
 ///
 /// See [SdkFirebaseInitializer] for SDK Firebase initialization and
-/// [SdkRemoteConfigService] for Remote Config operations.
+/// [SdkFirebaseOptions] for configuration.
 ///
 /// ## Usage
 ///
 /// ```dart
-/// // Initialize the SDK
-/// final engine = AdaptiveAgentEngine();
-/// await engine.initialize();
+/// import 'package:qubrix/qubrix.dart';
 ///
-/// // The SDK automatically initializes Firebase for Remote Config
-/// // and fetches the HuggingFace model URL
+/// void main() async {
+///   // Initialize the SDK
+///   final engine = AdaptiveAgentEngine();
+///   await engine.initialize();
 ///
-/// // Download a model (uses Firebase config for model URL)
-/// await engine.downloadModel('model-id', onProgress: (progress) {
-///   print('${progress.operation} ${progress.percent}%');
-/// });
+///   // Download a model (uses Firebase config for model URL)
+///   await engine.downloadModel('model-id', onProgress: (progress) {
+///     print('${progress.operation} ${progress.percent}%');
+///   });
 ///
-/// // Execute a task
-/// final result = await engine.executeTask(TaskRequest(
-///   taskId: 'task_1',
-///   description: 'Classify this text',
-///   input: {'text': 'Hello world'},
-///   taskType: TaskType.classification,
-/// ));
+///   // Execute a task
+///   final result = await engine.executeTask(TaskRequest(
+///     taskId: 'task_1',
+///     description: 'Classify this text',
+///     input: {'text': 'Hello world'},
+///     taskType: TaskType.classification,
+///   ));
+/// }
 /// ```
 library qubrix;
 
